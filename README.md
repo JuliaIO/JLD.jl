@@ -1,80 +1,44 @@
-# HDF5 interface for the Julia language
+# Saving and loading variables in Julia Data format (JLD)
 
-[![Build Status](https://travis-ci.org/timholy/HDF5.jl.svg?branch=master)](https://travis-ci.org/timholy/HDF5.jl) [![Build status](https://ci.appveyor.com/api/projects/status/r8to2ho7cx72qxa1/branch/master?svg=true)](https://ci.appveyor.com/project/timholy/hdf5-jl/branch/master)
-[![Coverage Status](https://coveralls.io/repos/timholy/HDF5.jl/badge.png?branch=master)](https://coveralls.io/r/timholy/HDF5.jl?branch=master)
+[![Build Status](https://travis-ci.org/JuliaLang/JLD.jl.svg?branch=master)](https://travis-ci.org/JuliaLang/JLD.jl)
 
-[HDF5][HDF5] is a file format and library for storing and accessing
-data, commonly used for scientific data. HDF5 files can be created and
-read by numerous [programming
-languages](http://www.hdfgroup.org/tools5desc.html).  This package
-provides an interface to the HDF5 library for the
-[Julia][Julia] language.
+JLD, for which files conventionally have the extension `.jld`, is a
+widely-used format for data storage with the Julia programming
+language.  JLD is a specific "dialect" of [HDF5][HDF5], a
+cross-platform, multi-language data storage format most frequently
+used for scientific data.  By comparison with "plain" HDF5, JLD files
+automatically add attributes and naming conventions to preserve type
+information for each object.
 
-## Julia data (\*.jld) and Matlab (\*.mat) files
+For lossless storage of arbitrary Julia objects, the only other
+complete solution appears to be Julia's serializer, which can be
+accessed via the `serialize` and `deserialize` commands.  However,
+because the serializer is also used for inter-process communication,
+long-term backwards compatibility is currently uncertain.  (The
+[JLDArchives](https://github.com/timholy/JLDArchives.jl) package exists to test compatibility of older JLD file
+formats.) If you choose to save data using the serializer, please use
+the file extension `.jls` to distinguish the files from `.jld` files.
 
-The core HDF5 functionality is the foundation for two special-purpose
-modules, used to read and write HDF5 files with specific formatting
-conventions. The first is the JLD ("Julia data") module (provided in
-this package), which implements a generic mechanism for reading and
-writing Julia variables. While one can use "plain" HDF5 for this
-purpose, the advantage of the JLD module is that it preserves the
-exact type information of each variable.
-
-The other functionality provided through HDF5 is the ability to read
-and write Matlab \*.mat files saved as "-v7.3". The Matlab-specific
-portions have been moved to Simon Kornblith's
-[MAT.jl](https://github.com/simonster/MAT.jl) repository.
 
 ## Installation
 
 Within Julia, use the package manager:
 ```julia
-Pkg.add("HDF5")
+Pkg.add("JLD")
 ```
 
-You also need to have the HDF5 library installed on your
-system (version 1.8 or higher is required), but **for most users
-no additional steps should be required; the HDF5 library should be
-installed for you automatically when you add the package.**
-
-If you have to install the HDF5 library manually, here are some examples of
-how to do it:
-
-- Debian/(K)Ubuntu: `apt-get -u install hdf5-tools`
-- OSX: `brew tap homebrew/science; brew install hdf5` (using [Homebrew](http://brew.sh))
-- Windows: It is highly recommended that you use the HDF5 library
-  fetched by this package. Other HDF5 binaries may be compiled against
-  a different C runtime from the Julia binary, which will cause
-  Julia to crash when freeing memory allocated by libhdf5.
-
-If you've installed the library but discover that Julia is not finding
-it, you can add the path to Julia's `Sys.DL_LOAD_PATH` variable, e.g.,
-```
-push!(Sys.DL_LOAD_PATH, "/opt/local/lib")
-```
-Inserting this command into your `.juliarc.jl` file will cause this to
-happen automatically each time you start Julia.
-
-If you're on Linux but you do not have root privileges on your machine (and
-you can't persuade the sysadmin to install the libraries for you), you can [download](http://www.hdfgroup.org/HDF5/release/obtain5.html) the
-binaries and place them somewhere in your home directory. To use HDF5,
-you'll have to start julia as
-```
-LD_LIBRARY_PATH=/path/to/hdf5/libs julia
-```
-You can set up an alias so this happens for you automatically each time
-you start julia.
+Currently this also requires the [HDF5 package](https://github.com/timholy/HDF5.jl).
 
 ## Quickstart
 
 To use the JLD module, begin your code with
 
 ```julia
-using HDF5, JLD
+using JLD
 ```
 
 If you just want to save a few variables and don't care to use the more
-advanced features of HDF5, then a simple syntax is:
+advanced features, then a simple syntax is:
 
 ```
 t = 15
@@ -82,7 +46,7 @@ z = [1,3]
 save("/tmp/myfile.jld", "t", t, "arr", z)
 ```
 Here we're explicitly saving `t` and `z` as `"t"` and `"arr"` within
-myfile.jld. You can alternatively pass `save` a dictionary; the keys must be
+`myfile.jld`. You can alternatively pass `save` a dictionary; the keys must be
 strings and are saved as the variable names of their values within the JLD
 file. You can read these variables back in with
 ```
@@ -106,15 +70,7 @@ so you cannot introduce new variables at runtime or evaluate expressions
 in other workspaces.
 The `save` and `load` functions do not have these limitations, and are therefore
 recommended as being considerably more robust, at the cost of some slight
-reduction of convenience.
-
-For plain HDF5 files, you can similarly say
-```julia
-A = reshape(1:120, 15, 8)
-h5write("/tmp/test2.h5", "mygroup2/A", A)
-data = h5read("/tmp/test2.h5", "mygroup2/A", (2:3:15, 3:5))
-```
-where the last line reads back just `A[2:3:15, 3:5]` from the dataset.
+reduction in convenience.
 
 More fine-grained control can be obtained using functional syntax:
 
@@ -133,49 +89,59 @@ just fine), but an advantage is that it will automatically close the file (`clos
 for you, even in cases of error.
 
 Julia's high-level wrapper, providing a dictionary-like interface, may
-also be of interest. This is demonstrated with the "plain" (unformatted)
-HDF5 interface:
+also be of interest:
 
 ```julia
-using HDF5
+using JLD, HDF5
 
-h5open("test.h5", "w") do file
+jldopen("test.jld", "w") do file
     g = g_create(file, "mygroup") # create a group
     g["dset1"] = 3.2              # create a scalar dataset inside the group
-    attrs(g)["Description"] = "This group contains only a single dataset" # an attribute
+    g["dest2"] = rand(2,2)
 end
 ```
 
-There is no conflict in having multiple modules (HDF5, JLD, and
-[MAT](https://github.com/simonster/MAT.jl)) available simultaneously;
-the formatting of the file is determined by the open command.
+Note that the features of HDF5 generally can also be used on JLD files.
+
+## Types and their definitions
+
+You can save objects that have user-defined type; in a fresh Julia session, before loading those objects these types need to be defined. If no definition is avaiable, the JLD module will automatically create the types for you.  However, it's important to note that `MyType`, defined automatically by JLD, is not the same `MyType` as defined in an external module---in particular, module functions will not work for types defined by JLD.  To ensure that loaded types have the full suite of behaviors provided by their definition in external modules, you should ensure that such modules are available before reading such variables from a `.jld` file.
+
+To ensure automatic loading of modules, use `addrequire` to specify any dependencies. For example, suppose you have a file `"MyTypes.jl"` somewhere on your default `LOAD_PATH`, defined this way:
+```
+module MyTypes
+
+export MyType
+
+type MyType
+    value::Int
+end
+
+end
+```
+and you have an object `x` of type `MyType`. Then save `x` in the following way:
+
+```
+jldopen("somedata.jld", "w") do file
+    addrequire(file, "MyTypes")
+    write(file, "x", x)
+end
+```
+This will cause `"MyTypes.jl"` to be loaded automatically whenever `"somedata.jld"` is opened.
 
 ## Complete documentation
 
-More extensive documentation is found in the [`doc/`](doc/) directory.
+More extensive documentation, including information about the JLD
+format conventions, can be found in the [`doc/`](doc/) directory.
 
 The `test/` directory contains a number of test scripts that also
 demonstrate usage.
 
 ## Credits
 
-- [Konrad Hinsen](https://github.com/khinsen/julia_hdf5) initiated
-  Julia's support for HDF5
+- Simon Kornblith and Tim Holy (co-maintainers and primary authors)
 
-- Tim Holy and Simon Kornblith (co-maintainers and primary authors)
-
-- Tom Short contributed code and ideas to the dictionary-like
-  interface, and string->type conversion in the JLD module
-
-- Blake Johnson made several improvements, such as support for
-  iterating over attributes
-
-- Isaiah Norton and Elliot Saba improved installation on Windows and OSX
-
-- Steve Johnson contributed the `do` syntax
-
-- Mike Nolta and Jameson Nash contributed code or suggestions for
-  improving the handling of HDF5's constants
+- Tom Short contributed to string->type conversion
 
 - Thanks also to the users who have reported bugs and tested fixes
 

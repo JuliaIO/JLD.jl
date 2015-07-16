@@ -29,7 +29,7 @@ file["a"] = [1:100]
 b = file["a"][20:30]
 close(file)
 ```
-Use the `delete!` function to delete `JldDataset`s and their associated references.  Directly deleting a `JldDataset` with `o_delete` will leave behind unwanted objects that may cause future errors, especially if you reuse the same path in the JLD file. 
+Use the `delete!` function to delete `JldDataset`s and their associated references.  Directly deleting a `JldDataset` with `o_delete` will leave behind unwanted objects that may cause future errors, especially if you reuse the same path in the JLD file.
 
 To specify compression, use the `compress` keyword argument to
 `jldopen` or `save`, e.g. `jldopen("mydata.jld", "w", compress=true)`
@@ -72,29 +72,7 @@ JldFile len 19
   x: Float64
 ```
 
-## Types and their definitions
-
-You can save objects that have user-defined type; before loading those objects from a JLD file in a fresh julia session, these types need to be defined. You can ensure this happens automatically with `addrequire`. For example, suppose you have a file `"MyTypes.jl"` somewhere on your default `LOAD_PATH`, defined this way:
-```
-module MyTypes
-
-export MyType
-
-type MyType
-    value::Int
-end
-
-end
-```
-and you have an object `x` of type `MyType`. Then save `x` in the following way:
-
-```
-jldopen("somedata.jld", "w") do file
-    addrequire(file, "MyTypes")
-    write(file, "x", x)
-end
-```
-This will cause `"MyTypes.jl"` to be loaded automatically whenever `"somedata.jld"` is opened.
+## Unusual module paths
 
 Types are saved with their full module path, e.g., `MyTypes.MyType`. In general, most types should naturally be in modules that have a consistent module path each time you use them. However, in rare cases you may want to save types from a different module path than you expect to use them. You can use the `rootmodule` option to truncate the module path. For example, if you save your file this way:
 ```
@@ -154,7 +132,7 @@ For an `Array{Any, 1}` stored with name `"AB"`, you might see the following:
       DATATYPE  H5T_REFERENCE
       DATASPACE  SIMPLE { ( 2 ) / ( 2 ) }
       DATA {
-      (0): DATASET 14512 /_refs/AB/1 , DATASET 15112 /_refs/AB/2 
+      (0): DATASET 14512 /_refs/AB/1 , DATASET 15112 /_refs/AB/2
       }
       ATTRIBUTE "julia type" {
          DATATYPE  H5T_STRING {
