@@ -1,6 +1,7 @@
 # Saving and loading variables in Julia Data format (JLD)
 
 [![Build Status](https://travis-ci.org/JuliaLang/JLD.jl.svg?branch=master)](https://travis-ci.org/JuliaLang/JLD.jl)
+[![Build status](https://ci.appveyor.com/api/projects/status/p2wkp87jfr0q7g4q?svg=true)](https://ci.appveyor.com/project/timholy/jld-jl)
 
 JLD, for which files conventionally have the extension `.jld`, is a
 widely-used format for data storage with the Julia programming
