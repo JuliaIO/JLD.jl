@@ -762,7 +762,7 @@ length(x::Union(JldFile, JldGroup)) = length(names(x))
 is_valid_type_ex(s::Symbol) = true
 is_valid_type_ex(s::QuoteNode) = true
 is_valid_type_ex{T}(::T) = isbits(T)
-is_valid_type_ex(e::Expr) = ((e.head == :curly || e.head == :tuple || e.head == :.) && all(map(is_valid_type_ex, e.args))) ||
+is_valid_type_ex(e::Expr) = ((e.head == :curly || e.head == :tuple || e.head == :.) && all(is_valid_type_ex, e.args)) ||
                             (e.head == :call && (e.args[1] == :Union || e.args[1] == :TypeVar))
 
 if VERSION >= v"0.4.0-dev+1419"
