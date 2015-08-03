@@ -3,6 +3,11 @@ environment:
   - JULIAVERSION: "x86/0.3/julia-0.3-latest-win32.exe"
   - JULIAVERSION: "x64/0.3/julia-0.3-latest-win64.exe"
 
+branches:
+  only:
+    - master
+    - /release-.*/
+
 install:
 # Download most recent Julia Windows binary
   - ps: (new-object net.webclient).DownloadFile($("http://s3.amazonaws.com/julialang/bin/winnt/"+$env:JULIAVERSION), "C:\projects\julia-binary.exe")
