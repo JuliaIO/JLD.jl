@@ -196,7 +196,7 @@ function jldopen(filename::AbstractString, rd::Bool, wr::Bool, cr::Bool, tr::Boo
                     if exists(fj, pathrequire)
                         r = read(fj, pathrequire)
                         for fn in r
-                            require(fn)
+                            require_file(fn)
                         end
                     end
                 end
@@ -1080,6 +1080,12 @@ function addrequire(file::JldFile, filename::AbstractString)
     push!(files, filename)
     has_require && o_delete(file, pathrequire)
     write(file, pathrequire, files)
+end
+
+if VERSION >= v"0.4.0-dev+6055"
+    include("require_file.jl")
+else
+    require_file(fn::AbstractString) = require(fn)
 end
 
 export
