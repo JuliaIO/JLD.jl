@@ -124,7 +124,7 @@ and you have an object `x` of type `MyType`. Then save `x` in the following way:
 
 ```
 jldopen("somedata.jld", "w") do file
-    addrequire(file, "MyTypes")
+    addrequire(file, MyTypes)
     write(file, "x", x)
 end
 ```
