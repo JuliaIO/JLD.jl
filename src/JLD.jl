@@ -196,7 +196,8 @@ function jldopen(filename::AbstractString, rd::Bool, wr::Bool, cr::Bool, tr::Boo
                     if exists(fj, pathrequire)
                         r = read(fj, pathrequire)
                         for fn in r
-                            Base.require(path2modsym(fn))
+                            mod = path2modsym(fn)
+                            eval(Expr(:import, mod))
                         end
                     end
                 end
@@ -902,6 +903,9 @@ function full_typename(io::IO, file::JldFile, jltype::DataType)
         for x in file.truncatemodules
             if startswith(mname, x)
                 mname = length(x) == length(mname) ? "" : mname[sizeof(x)+1:end]
+                if startswith(mname, ".")
+                    mname = mname[2:end]
+                end
                 break
             end
         end
