@@ -82,13 +82,21 @@ module A
         include("MyTypes.jl")
         x = MyTypes.MyType(7)      # Full module path is A.B.MyTypes.MyType
         jldopen("test.jld", "w") do file
-            addrequire(file, "MyTypes")
+            addrequire(file, :MyTypes)
             write(file, "x", x, rootmodule="B")  # truncate up to and including B, so path is MyTypes.MyType
         end
     end
 end
 ```
 Then you can read this file from the REPL prompt simply with `@load "test.jld"`. The `MyTypes` module will be defined inside `Main`, with no reference to `A.B`.
+
+An alternative to `rootmodule` is to use
+```jl
+truncate_module_path(file, MyTypes)
+```
+and then use `write` without keyword arguments. This will cause all
+future writes of objects defined in `MyTypes` to be stripped of their
+module path.
 
 ## Reference: the *.jld HDF5 format <a name="reference"></a>
 

@@ -196,7 +196,8 @@ function jldopen(filename::AbstractString, rd::Bool, wr::Bool, cr::Bool, tr::Boo
                     if exists(fj, pathrequire)
                         r = read(fj, pathrequire)
                         for fn in r
-                            require(fn)
+                            mod = path2modsym(fn)
+                            eval(Expr(:import, mod))
                         end
                     end
                 end
@@ -902,6 +903,9 @@ function full_typename(io::IO, file::JldFile, jltype::DataType)
         for x in file.truncatemodules
             if startswith(mname, x)
                 mname = length(x) == length(mname) ? "" : mname[sizeof(x)+1:end]
+                if startswith(mname, ".")
+                    mname = mname[2:end]
+                end
                 break
             end
         end
@@ -1074,12 +1078,32 @@ function load(filename::AbstractString, varnames::@compat Tuple{Vararg{AbstractS
     end
 end
 
-function addrequire(file::JldFile, filename::AbstractString)
+function addrequire(file::JldFile, mod::Module)
+    module_parent(mod) == Main || error("must be a toplevel module")
+    addrequire(file, module_name(mod))
+end
+
+function addrequire(file::JldFile, modsym::Symbol)
     has_require = exists(file, pathrequire)
-    files = has_require ? read(file, pathrequire) : ByteString[]
-    push!(files, filename)
+    modules = has_require ? map(path2modsym, read(file, pathrequire)) : Symbol[]
+    push!(modules, modsym)
     has_require && o_delete(file, pathrequire)
-    write(file, pathrequire, files)
+    write(file, pathrequire, modules)
+end
+
+function addrequire(file::JldFile, filename::AbstractString)
+    warn("\"addrequire(file, filename)\" is deprecated, please use \"addrequire(file, module)\"")
+    addrequire(file, path2modsym(filename))
+end
+
+# Cope with JLD0.1 format
+path2modsym(s::Symbol) = s
+function path2modsym(filename::AbstractString)
+    bname = basename(filename)
+    if endswith(bname, ".jl")
+        bname = bname[1:end-3]
+    end
+    symbol(bname)
 end
 
 export
