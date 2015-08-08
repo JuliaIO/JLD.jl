@@ -206,8 +206,8 @@ exists(p::Union(JldFile, JldGroup, JldDataset), path::ByteString) = exists(p.pla
 root(p::Union(JldFile, JldGroup, JldDataset)) = g_open(file(p), "/")
 o_delete(parent::Union(JldFile, JldGroup), args...) = o_delete(parent.plain, args...)
 function ensurepathsafe(path::ByteString)
-    if any([startswith(path, s) for s in (pathrefs,pathtypes,pathrequire)]) 
-        error("$name is internal to the JLD format, use o_delete if you really want to delete it") 
+    if any([startswith(path, s) for s in (pathrefs,pathtypes,pathrequire)])
+        error("$name is internal to the JLD format, use o_delete if you really want to delete it")
     end
 end
 function delete!(o::JldDataset)
@@ -544,7 +544,7 @@ write{T<:Union(HDF5BitsKind, ByteString)}(parent::Union(JldFile, JldGroup), name
 
 # Arrays-of-arrays of basic types
 write{T<:Union(HDF5BitsKind, ByteString)}(parent::Union(JldFile, JldGroup), name::ByteString,
-                                            data::Array{Array{T,1}}, astype::ByteString) = 
+                                            data::Array{Array{T,1}}, astype::ByteString) =
     write(parent, name, HDF5.HDF5Vlen(data), astype)
 write{T<:Union(HDF5BitsKind, ByteString)}(parent::Union(JldFile, JldGroup), name::ByteString,
                                             data::Array{Array{T,1}}) =
@@ -930,7 +930,7 @@ end
 is_valid_type_ex(s::Symbol) = true
 is_valid_type_ex(s::QuoteNode) = true
 is_valid_type_ex(x::Int) = true
-is_valid_type_ex(e::Expr) = ((e.head == :curly || e.head == :tuple || e.head == :.) && all(map(is_valid_type_ex, e.args))) ||
+is_valid_type_ex(e::Expr) = ((e.head == :curly || e.head == :tuple || e.head == :.) && all(is_valid_type_ex, e.args)) ||
                             (e.head == :call && (e.args[1] == :Union || e.args[1] == :TypeVar))
 
 const _typedict = Dict{UTF8String,Type}()
@@ -970,7 +970,7 @@ end
 full_typename(jltype::UnionType) = @sprintf "Union(%s)" join(map(full_typename, jltype.types), ",")
 function full_typename(tv::TypeVar)
     if is(tv.lb, None) && is(tv.ub, Any)
-        "TypeVar(:$(tv.name))" 
+        "TypeVar(:$(tv.name))"
     elseif is(tv.lb, None)
         "TypeVar(:$(tv.name),$(full_typename(tv.ub)))"
     else
@@ -1067,7 +1067,7 @@ macro load(filename, vars...)
                 push!(vars, sym)
             end
         end
-        return Expr(:block, 
+        return Expr(:block,
                     Expr(:global, vars...),
                     Expr(:try,  Expr(:block, readexprs...), false, false,
                          :(close($f))),
@@ -1077,7 +1077,7 @@ macro load(filename, vars...)
         for i = 1:length(vars)
             readexprs[i] = :($(esc(vars[i])) = read(f, $(string(vars[i]))))
         end
-        return Expr(:block, 
+        return Expr(:block,
                     Expr(:global, map(esc, vars)...),
                     :(local f = jldopen($(esc(filename)))),
                     Expr(:try,  Expr(:block, readexprs...), false, false,
@@ -1096,7 +1096,7 @@ function save(filename::AbstractString, dict::Associative)
 end
 # Or the names and values may be specified as alternating pairs
 function save(filename::AbstractString, name::AbstractString, value, pairs...)
-    if isodd(length(pairs)) || !isa(pairs[1:2:end], (AbstractString...)) 
+    if isodd(length(pairs)) || !isa(pairs[1:2:end], (AbstractString...))
         throw(ArgumentError("arguments must be in name-value pairs"))
     end
     jldopen(filename, "w") do file
