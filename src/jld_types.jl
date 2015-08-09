@@ -9,6 +9,7 @@ const JLD_REF_TYPE = JldDatatype(HDF5Datatype(HDF5.H5T_STD_REF_OBJ, false), 0)
 const BUILTIN_TYPES = Set([Symbol, Type, UTF16String, BigFloat, BigInt])
 const H5CONVERT_DEFINED = ObjectIdDict()
 const JLCONVERT_DEFINED = ObjectIdDict()
+const JL_TYPENAME_TRANSLATE = Dict{ByteString,ByteString}()
 
 if VERSION >= v"0.4.0-dev+4319"
     const EMPTY_TUPLE_TYPE = Tuple{}
@@ -25,6 +26,8 @@ else
 end
 
 ## Helper functions
+
+translate(oldname::ByteString, newname::ByteString) = JL_TYPENAME_TRANSLATE[oldname] = newname
 
 # Holds information about the mapping between a Julia and HDF5 type
 immutable JldTypeInfo
@@ -655,11 +658,14 @@ function jldatatype(parent::JldFile, dtype::HDF5Datatype)
         haskey(parent.h5jltype, addr) && return parent.h5jltype[addr]
 
         typename = a_read(dtype, name_type_attr)
+        typename = get(JL_TYPENAME_TRANSLATE, typename, typename)
         T = julia_type(typename)
         if T == UnsupportedType
             warn("type $typename not present in workspace; reconstructing")
             T = reconstruct_type(parent, dtype, typename)
         end
+
+        T = readas(T)
 
         if !(T in BUILTIN_TYPES)
             # Call jldatatype on dependent types to validate them and
