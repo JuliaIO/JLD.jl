@@ -7,7 +7,7 @@ using HDF5, Compat
 # Add methods to...
 import HDF5: close, dump, exists, file, getindex, setindex!, g_create, g_open, o_delete, name, names, read, write,
              HDF5ReferenceObj, HDF5BitsKind, ismmappable, readmmap
-import Base: length, endof, show, done, next, ndims, start, delete!, size, sizeof
+import Base: convert, length, endof, show, done, next, ndims, start, delete!, size, sizeof
 
 const magic_base = "Julia data file (HDF5), version "
 const version_current = v"0.1"
@@ -93,19 +93,6 @@ immutable TypeMismatchException <: Exception
 end
 show(io::IO, e::TypeMismatchException) =
     print(io, "stored type $(e.typename) does not match currently loaded type")
-
-# Wrapper for associative keys
-# We write this instead of the associative to avoid dependence on the
-# Julia hash function
-immutable AssociativeWrapper{K,V,T<:Associative}
-    keys::Vector{K}
-    values::Vector{V}
-end
-
-# Wrapper for SimpleVector
-immutable SimpleVectorWrapper
-    elements::Vector
-end
 
 include("jld_types.jl")
 
@@ -312,7 +299,7 @@ function read(parent::Union(JldFile, JldGroup), name::ByteString)
     finally
         close(obj)
     end
-    val
+    readas(val)
 end
 read(parent::Union(JldFile,JldGroup), name::Symbol) = read(parent,bytestring(string(name)))
 
@@ -351,29 +338,7 @@ read_scalar{T<:BitsKindOrByteString}(obj::JldDataset, dtype::HDF5Datatype, ::Typ
 function read_scalar(obj::JldDataset, dtype::HDF5Datatype, T::Type)
     buf = Array(UInt8, sizeof(dtype))
     HDF5.readarray(obj.plain, dtype.id, buf)
-    return after_read(jlconvert(T, file(obj), pointer(buf)))
-end
-
-after_read(x) = x
-
-# Special case for associative, to rehash keys
-function after_read{K,V,T}(x::AssociativeWrapper{K,V,T})
-    ret = T()
-    keys = x.keys
-    values = x.values
-    n = length(keys)
-    if applicable(sizehint!, ret, n)
-        sizehint!(ret, n)
-    end
-    for i = 1:n
-        ret[keys[i]] = values[i]
-    end
-    ret
-end
-
-# Special case for SimpleVector
-if VERSION >= v"0.4.0-dev+4319"
-    after_read(x::SimpleVectorWrapper) = Base.svec(x.elements...)
+    return readas(jlconvert(T, file(obj), pointer(buf)))
 end
 
 ## Arrays
@@ -382,10 +347,11 @@ end
 function read_array(obj::JldDataset, dtype::HDF5Datatype, dspace_id::HDF5.Hid, dsel_id::HDF5.Hid,
                     dims::(@compat Tuple{Vararg{Int}})=convert((@compat Tuple{Vararg{Int}}), HDF5.h5s_get_simple_extent_dims(dspace_id)[1]))
     if HDF5.h5t_get_class(dtype) == HDF5.H5T_REFERENCE
-        return read_refs(obj, refarray_eltype(obj), dspace_id, dsel_id, dims)
+        val = read_refs(obj, refarray_eltype(obj), dspace_id, dsel_id, dims)
     else
-        return read_vals(obj, dtype, jldatatype(file(obj), dtype), dspace_id, dsel_id, dims)
+        val = read_vals(obj, dtype, jldatatype(file(obj), dtype), dspace_id, dsel_id, dims)
     end
+    readas(val)
 end
 
 # Arrays of basic HDF5 kinds
@@ -478,14 +444,14 @@ function read_ref(f::JldFile, ref::HDF5ReferenceObj)
     end
 
     f.jlref[ref] = WeakRef(data)
-    data
+    readas(data)
 end
 
 ### Writing ###
 
 write(parent::Union(JldFile, JldGroup), name::ByteString,
       data, wsession::JldWriteSession=JldWriteSession(); kargs...) =
-    close(_write(parent, name, data, wsession; kargs...))
+    close(_write(parent, name, writeas(data), wsession; kargs...))
 
 # Pick whether to use compact or default storage based on data size
 function dset_create_properties(parent, sz::Int, obj, chunk=Int[]; mmap::Bool=false)
@@ -620,7 +586,7 @@ function write_ref(parent::JldFile, data, wsession::JldWriteSession)
     # Write an new reference
     gref = get_gref(parent)
     name = @sprintf "%08d" (parent.nrefs += 1)
-    dset = _write(gref, name, data, wsession)
+    dset = _write(gref, name, writeas(data), wsession)
 
     # Add reference to reference list
     ref = HDF5ReferenceObj(HDF5.objinfo(dset).addr)
@@ -632,27 +598,6 @@ function write_ref(parent::JldFile, data, wsession::JldWriteSession)
 end
 write_ref(parent::JldGroup, data, wsession::JldWriteSession) =
     write_ref(file(parent), data, wsession)
-
-# Special case for associative, to rehash keys
-function _write{K,V}(parent::Union(JldFile, JldGroup), name::ByteString,
-                     d::Associative{K,V}, wsession::JldWriteSession; kargs...)
-    n = length(d)
-    ks = Array(K, n)
-    vs = Array(V, n)
-    i = 0
-    for (k,v) in d
-        ks[i+=1] = k
-        vs[i] = v
-    end
-    write_compound(parent, name, AssociativeWrapper{K,V,typeof(d)}(ks, vs), wsession; kargs...)
-end
-
-# Special case for SimpleVector
-if VERSION >= v"0.4.0-dev+4319"
-    _write(parent::Union(JldFile, JldGroup), name::ByteString,
-           d::SimpleVector, wsession::JldWriteSession; kargs...) =
-        write_compound(parent, name, SimpleVectorWrapper([d...]), wsession; kargs...)
-end
 
 # Expressions, drop line numbers
 function _write(parent::Union(JldFile, JldGroup),
@@ -758,6 +703,68 @@ setindex!(dset::JldDataset, x, I::Union(Range{Int},Integer,Colon)...) = setindex
 
 length(x::Union(JldFile, JldGroup)) = length(names(x))
 
+### Custom serialization
+
+readas(x) = x
+writeas(x) = x
+
+# Wrapper for associative keys
+# We write this instead of the associative to avoid dependence on the
+# Julia hash function
+immutable AssociativeWrapper{K,V,T<:Associative}
+    keys::Vector{K}
+    values::Vector{V}
+end
+
+readas{K,V,T}(x::AssociativeWrapper{K,V,T}) = convert(T, x)
+function writeas{T<:Associative}(x::T)
+    K, V = destructure(eltype(x))
+    convert(AssociativeWrapper{K,V,T}, x)
+end
+destructure(x) = x
+if VERSION >= v"0.4.0-dev+6265"
+    destructure{K,V}(::Type{Pair{K,V}}) = K, V  # not inferrable, julia#10880
+end
+
+# Special case for associative, to rehash keys
+function convert{K,V,T<:Associative}(::Type{T}, x::AssociativeWrapper{K,V,T})
+    ret = T()
+    keys = x.keys
+    values = x.values
+    n = length(keys)
+    if applicable(sizehint!, ret, n)
+        sizehint!(ret, n)
+    end
+    for i = 1:n
+        ret[keys[i]] = values[i]
+    end
+    ret
+end
+
+function convert{K,V,T}(::Type{AssociativeWrapper{K,V,T}}, d::Associative)
+    n = length(d)
+    ks = Array(K, n)
+    vs = Array(V, n)
+    i = 0
+    for (k,v) in d
+        ks[i+=1] = k
+        vs[i] = v
+    end
+    AssociativeWrapper{K,V,typeof(d)}(ks, vs)
+end
+
+# Special case for SimpleVector
+# Wrapper for SimpleVector
+immutable SimpleVectorWrapper
+    elements::Vector
+end
+
+# Special case for SimpleVector
+if VERSION >= v"0.4.0-dev+4319"
+    readas(x::SimpleVectorWrapper) = Base.svec(x.elements...)
+    writeas(x::SimpleVector) = SimpleVectorWrapper([x...])
+end
+
 ### Converting attribute strings to Julia types
 
 is_valid_type_ex(s::Symbol) = true
@@ -836,7 +843,7 @@ end
 function julia_type(e::Union(Symbol, Expr))
     if is_valid_type_ex(e)
         try     # try needed to catch undefined symbols
-            typ = eval(Main, e)
+            typ = eval(current_module(), e)
             isa(typ, Type) && return typ
         end
     end
@@ -1118,6 +1125,7 @@ export
     @save,
     load,
     save,
+    translate,
     truncate_module_path
 
 const _runtime_properties = Array(HDF5.HDF5Properties, 1)
