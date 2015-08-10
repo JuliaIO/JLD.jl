@@ -72,6 +72,94 @@ JldFile len 19
   x: Float64
 ```
 
+## Custom serialization
+
+There are times when you might want to store one Julia type as a
+different Julia type.  For example, if you have an object of type
+`Vector{Vector{Int}}`, and all of the vectors are of the same length,
+you might consider packing it as a `Matrix` (with each vector a column
+of the matrix) for storage by HDF5.  Such tricks can decrease the
+number of separate objects written to the disk, and perhaps improve
+performance.
+
+You achieve this by extending the `readas` and `writeas` functions,
+defining a specific "serializer" type that only has meaning as an
+on-disk storage format.  Here's a simple demonstration:
+
+```jl
+using JLD
+
+type MyVectors5
+    v::Vector{Vector{Int}}
+end
+
+type MyVectors5Serializer
+    m::Matrix{Int}
+end
+
+JLD.readas(serdata::MyVectors5Serializer) = MyVectors5(Vector{Int}[serdata.m[:,i] for i = 1:size(serdata.m, 2)])
+
+JLD.writeas(data::MyVectors5) = MyVectors5Serializer(hcat(data.v...))
+```
+
+These `readas` and `writeas` definitions just convert one form to the
+other.  To test it,
+
+```jl
+v1 = rand(1:10, 5)
+v2 = rand(1:10, 5)
+obj = MyVectors5(Vector{Int}[v1,v2])
+
+filename = joinpath(tempdir(), "custom.jld")
+jldopen(filename, "w") do file
+    write(file, "somedata", obj)
+end
+
+obj2 = jldopen(filename) do file
+    read(file, "somedata")
+end
+```
+
+You should see that `obj2` has the same contents as `obj`, but that
+`h5dump` shows the data are being stored as a matrix.
+
+## Rescuing old types
+
+Suppose you define some types and save a few of these objects to a
+`*.jld` file.  Some time later, you change your code, and these
+changes include modifications to the original type.  How can you load
+those old `*.jld` files?
+
+The key function here is `translate`, in conjunction with `readas` as
+described above.  For example, let's say you define
+```jl
+type MyType
+    a::Int
+end
+```
+and then save such objects to disk.  Later, you re-define it as
+```jl
+type MyType
+    a::Int
+    b::Float32
+end
+```
+
+To read the original variables, a good approach is to define
+to define
+```jl
+type MyOldType
+    a::Int
+end
+
+JLD.readas(x::MyOldType) = MyType(x.a, 0f0)
+
+translate("MyType", "MyOldType")
+```
+
+before reading the variables. These definitions will cause old objects
+to be returned as a (new) `MyType` with `b == 0.0f0`.
+
 ## Unusual module paths
 
 Types are saved with their full module path, e.g., `MyTypes.MyType`. In general, most types should naturally be in modules that have a consistent module path each time you use them. However, in rare cases you may want to save types from a different module path than you expect to use them. You can use the `rootmodule` option to truncate the module path. For example, if you save your file this way:
