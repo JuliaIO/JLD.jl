@@ -767,6 +767,21 @@ if VERSION >= v"0.4.0-dev+4319"
     writeas(x::SimpleVector) = SimpleVectorWrapper([x...])
 end
 
+# Serializer for anonymous functions
+# convert functions to lowered ast expressions
+function func2expr(fun::Function)
+    @assert !isa(fun.env, MethodTable) "generic functions not supported"
+    ast = Base.uncompressed_ast(fun.code)
+    Expr(:function, Expr(:tuple, ast.args[1]...), Expr(:block, ast.args[3].args...))
+end
+immutable AnonymousFunctionSerializer
+    expr::Expr
+    AnonymousFunctionSerializer(fun::Function) = new(func2expr(fun))
+end
+readas(ast::AnonymousFunctionSerializer) = eval(ast.expr)
+writeas(fun::Function) = AnonymousFunctionSerializer(fun)
+
+
 ### Converting attribute strings to Julia types
 
 is_valid_type_ex(s::Symbol) = true
