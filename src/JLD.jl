@@ -783,9 +783,11 @@ writeas(fun::Function) = AnonymousFunctionSerializer(fun)
 
 if VERSION >= v"0.4.0-dev+6807"
     # Serializer for GlobalRef
-    # The serializer determines the name of the GlobalRef module within
-    # the workspace of current_module() and stores that name as a Tuple 
-    # of Symbols in the "mod" field.
+    # The name referred to by a GlobalRef is stored relative to the 
+    # workspace of current_module(), as opposed to an absolute reference.
+    # This way names are still resolved even if the module is in a 
+    # different position in the module hierarchy when the GlobalRef is
+    # deserialized.
     immutable GlobalRefSerializer
         mod::Tuple{Vararg{Symbol}}
         name::Symbol
