@@ -778,7 +778,7 @@ immutable AnonymousFunctionSerializer
     expr::Expr
     AnonymousFunctionSerializer(fun::Function) = new(func2expr(fun))
 end
-readas(ast::AnonymousFunctionSerializer) = eval(ast.expr)
+readas(ast::AnonymousFunctionSerializer) = current_module().eval(ast.expr)
 writeas(fun::Function) = AnonymousFunctionSerializer(fun)
 
 
