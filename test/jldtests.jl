@@ -284,6 +284,18 @@ end
 # skip line numbers in function body, 
 # as well as lines asserting a variable is type Any
 function isAssertAny(line::Expr)
+    if VERSION >= v"0.4.0-dev+6807"
+        headcheck = (line.head == :call)
+        if !headcheck
+            return false
+        end
+        assertcheck = (line.args[1] == TopNode(:typeassert))
+        if !assertcheck
+            return false
+        end
+        anycheck = (eval(line.args[3]) == Base.Any)
+        return anycheck
+    end
     headcheck = (line.head == :(=))
     if !headcheck
         return false
