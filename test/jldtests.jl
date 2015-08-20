@@ -316,6 +316,8 @@ function checkfuns(f, g)
     f_body = f_ast.args[3]
     g_body = g_ast.args[3]
     checkfunexpr(f_body, g_body)
+
+    @assert f.code.module == g.code.module
 end
 checkfunexpr(a, b) = @assert a == b
 function checkfunexpr(f_body::Expr, g_body::Expr)
