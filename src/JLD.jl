@@ -781,6 +781,19 @@ end
 readas(ast::AnonymousFunctionSerializer) = current_module().eval(ast.expr)
 writeas(fun::Function) = AnonymousFunctionSerializer(fun)
 
+if VERSION >= v"0.4.0-dev+6807"
+    # Serializer for GlobalRef
+    # The serializer determines the name of the GlobalRef module within
+    # the workspace of current_module() and stores that name as a Tuple 
+    # of Symbols in the "mod" field.
+    immutable GlobalRefSerializer
+        mod::Tuple{Vararg{Symbol}}
+        name::Symbol
+        GlobalRefSerializer(g::GlobalRef) = new(fullname(g.mod)[length(fullname(current_module()))+1:end], g.name)
+    end
+    readas(grs::GlobalRefSerializer) = GlobalRef(current_module().eval(parse(string(join((:Main, fullname(current_module())..., grs.mod...),".")))), grs.name)
+    writeas(gr::GlobalRef) = GlobalRefSerializer(gr)
+end
 
 ### Converting attribute strings to Julia types
 
