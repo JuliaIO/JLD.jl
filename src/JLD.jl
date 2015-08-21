@@ -776,7 +776,7 @@ end
 # Serializer for anonymous functions
 # convert functions to lowered ast expressions
 function func2expr(fun::Function)
-    @assert !isa(fun.env, MethodTable) "generic functions not supported"
+    @assert !isgeneric(fun) "generic functions not supported"
     ast = Base.uncompressed_ast(fun.code)
     Expr(:function, Expr(:tuple, ast.args[1]...), Expr(:block, ast.args[3].args...))
 end
