@@ -47,7 +47,14 @@ ex = quote
     end
 end
 # anonymous function
+module FunConstMod
+    a = 2
+    module Sub
+        a = 4
+    end
+end
 fun = (x, y) -> funconst * x + y
+function_referencing_module = (x, y) -> FunConstMod.a * x + FunConstMod.Sub.a * y
 T = UInt8
 char = 'x'
 unicode_char = '\U10ffff'
@@ -387,6 +394,7 @@ for compress in (true,false)
     @write fid d
     @write fid ex
     @write fid fun
+    @write fid function_referencing_module
     @write fid T
     @write fid char
     @write fid unicode_char
@@ -501,6 +509,8 @@ for compress in (true,false)
         checkexpr(ex, exr)
         funr = read(fidr, "fun")
         checkfuns(fun, funr)
+        function_referencing_module_r = read(fidr, "function_referencing_module")
+        checkfuns(function_referencing_module, function_referencing_module_r)
         @check fidr T
         @check fidr char
         @check fidr unicode_char

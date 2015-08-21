@@ -767,6 +767,11 @@ if VERSION >= v"0.4.0-dev+4319"
     writeas(x::SimpleVector) = SimpleVectorWrapper([x...])
 end
 
+# function to convert string(mod::Module) back to mod::Module
+function modname2mod(modname::String)
+    parse(modname == "Main" ? modname : string("Main.", modname))
+end
+
 
 # Serializer for anonymous functions
 # convert functions to lowered ast expressions
@@ -777,20 +782,20 @@ function func2expr(fun::Function)
 end
 immutable AnonymousFunctionSerializer
     expr::Expr
-    mod::Tuple{Vararg{Symbol}}
-    AnonymousFunctionSerializer(fun::Function) = new(func2expr(fun), fullname(fun.code.module))
+    mod::String
+    AnonymousFunctionSerializer(fun::Function) = new(func2expr(fun), string(fun.code.module))
 end
-readas(ast::AnonymousFunctionSerializer) = eval(parse(string(join((:Main, ast.mod...))))).eval(ast.expr)
+readas(ast::AnonymousFunctionSerializer) = eval(modname2mod(ast.mod)).eval(ast.expr)
 writeas(fun::Function) = AnonymousFunctionSerializer(fun)
 
 if VERSION >= v"0.4.0-dev+6807"
     # Serializer for GlobalRef
     immutable GlobalRefSerializer
-        mod::Tuple{Vararg{Symbol}}
+        mod::String
         name::Symbol
-        GlobalRefSerializer(g::GlobalRef) = new(fullname(g.mod), g.name)
+        GlobalRefSerializer(g::GlobalRef) = new(string(g.mod), g.name)
     end
-    readas(grs::GlobalRefSerializer) = GlobalRef(eval(parse(string(join((:Main, grs.mod...),".")))), grs.name)
+    readas(grs::GlobalRefSerializer) = GlobalRef(eval(modname2mod(grs.mod)), grs.name)
     writeas(gr::GlobalRef) = GlobalRefSerializer(gr)
 end
 
