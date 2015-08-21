@@ -10,7 +10,6 @@ notifications:
 script:
     - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
     - julia -e 'Pkg.clone(pwd()); Pkg.add("JLDArchives"); Pkg.checkout("JLDArchives")'
-    - if [ $TRAVIS_JULIA_VERSION = "nightly" ]; then julia --check-bounds=yes --inline=no --code-coverage=user -e 'reload("JLD/test/runtests.jl"); workspace(); import LastMain.Compat, LastMain.HDF5, LastMain.JLD; reload("JLD/src/JLD.jl"); reload("JLDArchives/test/runtests.jl")'; fi
-    - if [ $TRAVIS_JULIA_VERSION = "release" ]; then julia --check-bounds=yes -e 'Pkg.test("JLD"); Pkg.test("JLDArchives")'; fi
+    - julia -e 'Pkg.test("JLD",coverage=true); Pkg.test("JLDArchives",coverage=true)'
 after_success:
-    - if [ $TRAVIS_JULIA_VERSION = "nightly" ]; then julia -e 'cd(Pkg.dir("JLD")); Pkg.add("Coverage"); using Coverage; Coveralls.submit(Coveralls.process_folder())'; fi
+    - if [ $TRAVIS_JULIA_VERSION = "nightly" ]; then julia -e 'cd(Pkg.dir("JLD")); Pkg.add("Coverage"); using Coverage; Codecov.submit(process_folder())'; fi
