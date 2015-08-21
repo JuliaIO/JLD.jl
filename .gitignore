@@ -1,3 +1,5 @@
 *~
 *.h5
 *.mat
+*.jl.*.cov
+*.jl.mem
