@@ -767,6 +767,38 @@ if VERSION >= v"0.4.0-dev+4319"
     writeas(x::SimpleVector) = SimpleVectorWrapper([x...])
 end
 
+# function to convert string(mod::Module) back to mod::Module
+function modname2mod(modname::String)
+    parse(modname == "Main" ? modname : string("Main.", modname))
+end
+
+
+# Serializer for anonymous functions
+# convert functions to lowered ast expressions
+function func2expr(fun::Function)
+    @assert !isgeneric(fun) "generic functions not supported"
+    ast = Base.uncompressed_ast(fun.code)
+    Expr(:function, Expr(:tuple, ast.args[1]...), Expr(:block, ast.args[3].args...))
+end
+immutable AnonymousFunctionSerializer
+    expr::Expr
+    mod::String
+    AnonymousFunctionSerializer(fun::Function) = new(func2expr(fun), string(fun.code.module))
+end
+readas(ast::AnonymousFunctionSerializer) = eval(modname2mod(ast.mod)).eval(ast.expr)
+writeas(fun::Function) = AnonymousFunctionSerializer(fun)
+
+if VERSION >= v"0.4.0-dev+6807"
+    # Serializer for GlobalRef
+    immutable GlobalRefSerializer
+        mod::String
+        name::Symbol
+        GlobalRefSerializer(g::GlobalRef) = new(string(g.mod), g.name)
+    end
+    readas(grs::GlobalRefSerializer) = GlobalRef(eval(modname2mod(grs.mod)), grs.name)
+    writeas(gr::GlobalRef) = GlobalRefSerializer(gr)
+end
+
 ### Converting attribute strings to Julia types
 
 is_valid_type_ex(s::Symbol) = true
