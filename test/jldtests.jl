@@ -53,6 +53,7 @@ module FunConstMod
         a = 4
     end
 end
+funconst = 11
 fun = (x, y) -> funconst * x + y
 function_referencing_module = (x, y) -> FunConstMod.a * x + FunConstMod.Sub.a * y
 T = UInt8
@@ -288,7 +289,7 @@ function checkexpr(a::Expr, b::Expr)
 end
 
 # check for equality of function asts
-# skip line numbers in function body, 
+# skip line numbers in function body,
 # as well as lines asserting a variable is type Any
 function isAssertAny(line::Expr)
     headcheck = (line.head == :(=))
@@ -364,7 +365,7 @@ write(fid, "a", [1:3;])
 close(fid)
 rm(fn)
 
- 
+
 for compress in (true,false)
     fid = jldopen(fn, "w", compress=compress)
     @write fid x
@@ -509,8 +510,10 @@ for compress in (true,false)
         checkexpr(ex, exr)
         funr = read(fidr, "fun")
         checkfuns(fun, funr)
+        @test funr(3,5) == 38
         function_referencing_module_r = read(fidr, "function_referencing_module")
         checkfuns(function_referencing_module, function_referencing_module_r)
+        @test function_referencing_module_r(3,7) == 34
         @check fidr T
         @check fidr char
         @check fidr unicode_char
@@ -523,7 +526,7 @@ for compress in (true,false)
         @check fidr typevar_lb
         @check fidr typevar_ub
         @check fidr typevar_lb_ub
-        
+
         # Special cases for reading undefs
         undef = read(fidr, "undef")
         if !isa(undef, Array{Any, 1}) || length(undef) != 1 || isdefined(undef, 1)
@@ -537,7 +540,7 @@ for compress in (true,false)
         if !isa(ms_undef, MyStruct) || ms_undef.len != 0 || isdefined(ms_undef, :data)
             error("For ms_undef, read value does not agree with written value")
         end
-        
+
         @check fidr bt
         @check fidr sa_asc
         @check fidr sa_utf8
@@ -564,15 +567,15 @@ for compress in (true,false)
         @check fidr bitsunion
         @check fidr typeunionfield
         @check fidr genericunionfield
-        
+
         arr = read(fidr, "arr_ref")
         @test arr == arr_ref
         @test arr[1] === arr[2]
-        
+
         obj = read(fidr, "obj_ref")
         @test obj.x.x === obj.x.y == obj.y.x === obj.y.y
         @test obj.x !== obj.y
-        
+
         @check fidr padding_test
         @check fidr empty_arr_1
         @check fidr empty_arr_2
@@ -596,12 +599,12 @@ for compress in (true,false)
         @check fidr tuple_of_tuples
         VERSION >= v"0.4.0-dev+4319" && @check fidr simplevec
         @check fidr natyperef
-        
+
         x1 = read(fidr, "group1/x")
         @assert x1 == Any[1]
         x2 = read(fidr, "group2/x")
         @assert x2 == Any[2]
-        
+
         close(fidr)
     end
 end # compress in (true,false)
@@ -616,18 +619,18 @@ for compress in (false,true)
         a = read(fid, "a")
         b = read(fid, "b")
         @test a[1] === a[2] === b[2] === a[1]
-        
+
         # Let gc get rid of a and b
         a = nothing
         b = nothing
         gc()
-        
+
         a = read(fid, "a")
         b = read(fid, "b")
         @test typeof(a[1]) == ObjRefType
         @test a[1] === a[2] === b[2] === a[1]
     end
-    
+
     # do syntax
     jldopen(fn, "w"; compress=compress) do fid
         g_create(fid, "mygroup") do g
@@ -641,7 +644,7 @@ for compress in (false,true)
     @assert read(g, "x") == 3.2
     close(g)
     close(fid)
-    
+
     # Function load() and save() syntax
     d = Dict([("x",3.2), ("β",β), ("A",A)])
     save(fn, d, compress=compress)
@@ -652,11 +655,11 @@ for compress in (false,true)
     β2, A2 = load(fn, "β", "A")
     @assert β == β2
     @assert A == A2
-    
+
     save(fn, "x", 3.2, "β", β, "A", A, compress=compress)
     d3 = load(fn)
     @assert d == d3
-    
+
     # #71
     jldopen(fn, "w", compress=compress) do file
         file["a"] = 1
@@ -664,12 +667,12 @@ for compress in (false,true)
     jldopen(fn, "r") do file
         @assert read(file, "a") == 1
     end
-    
+
     # Issue #106
     save(fn, "i106", Mod106.typ(@compat(Int64(1)), Mod106.UnexportedT), compress=compress)
     i106 = load(fn, "i106")
     @assert i106 == Mod106.typ(@compat(Int64(1)), Mod106.UnexportedT)
-    
+
     # bracket syntax for datasets
     jldopen(fn, "w", compress=compress) do file
         file["a"] = [1:100;]
@@ -689,7 +692,7 @@ for compress in (false,true)
         file["d"][1:1] = [9]
         @test(read(file, "d") == [9, 1//4, 1//8])
     end
-    
+
     # bracket syntax when created by HDF5
     println("The following unrecognized JLD file warning is a sign of normal operation.")
     if compress
@@ -710,7 +713,7 @@ for compress in (false,true)
         @assert(file["a"][:] == [1:50;1:50])
         @assert(file["b"][5,6][1]==5*6)
     end
-    
+
     # delete!
     jldopen(fn, "w", compress=compress) do file
         file["ms"] = ms
