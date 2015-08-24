@@ -46,6 +46,15 @@ ex = quote
         x+1
     end
 end
+# anonymous function
+module FunConstMod
+    a = 2
+    module Sub
+        a = 4
+    end
+end
+fun = (x, y) -> funconst * x + y
+function_referencing_module = (x, y) -> FunConstMod.a * x + FunConstMod.Sub.a * y
 T = UInt8
 char = 'x'
 unicode_char = '\U10ffff'
@@ -278,6 +287,54 @@ function checkexpr(a::Expr, b::Expr)
     @assert i >= length(a.args) && j >= length(b.args)
 end
 
+# check for equality of function asts
+# skip line numbers in function body, 
+# as well as lines asserting a variable is type Any
+function isAssertAny(line::Expr)
+    headcheck = (line.head == :(=))
+    if !headcheck
+        return false
+    end
+    assertcheck = (length(line.args) >= 2 && isa(line.args[2], Expr) && length(line.args[2].args) >= 1 &&
+        isa(line.args[2].args[1], TopNode) && line.args[2].args[1].name == :typeassert)
+    if !assertcheck
+        return false
+    end
+    anycheck = (length(line.args[2].args) >= 3 && (eval(line.args[2].args[3]) == Base.Any))
+    return anycheck
+end
+function checkfuns(f, g)
+    f_ast = Base.uncompressed_ast(f.code)
+    g_ast = Base.uncompressed_ast(g.code)
+    @assert f_ast.args[1] == g_ast.args[1]
+
+    f_body = f_ast.args[3]
+    g_body = g_ast.args[3]
+    checkfunexpr(f_body, g_body)
+
+    @assert f.code.module == g.code.module
+end
+checkfunexpr(a, b) = @assert a == b
+function checkfunexpr(f_body::Expr, g_body::Expr)
+    i = 1
+    j = 1
+    while i <= length(f_body.args) && j <= length(g_body.args)
+        if isa(f_body.args[i], Expr) && ((f_body.args[i].head == :line) || isAssertAny(f_body.args[i]))
+            i += 1
+            continue
+        end
+        if isa(g_body.args[j], Expr) && ((g_body.args[j].head == :line) || isAssertAny(g_body.args[j]))
+            j += 1
+            continue
+        end
+        checkfunexpr(f_body.args[i], g_body.args[j])
+        i += 1
+        j += 1
+    end
+    @assert i >= length(f_body.args) && j >= length(g_body.args)
+end
+
+
 fn = joinpath(tempdir(),"test.jld")
 
 # Issue #106
@@ -336,6 +393,8 @@ for compress in (true,false)
     @write fid syms
     @write fid d
     @write fid ex
+    @write fid fun
+    @write fid function_referencing_module
     @write fid T
     @write fid char
     @write fid unicode_char
@@ -448,6 +507,10 @@ for compress in (true,false)
         @check fidr d
         exr = read(fidr, "ex")   # line numbers are stripped, don't expect equality
         checkexpr(ex, exr)
+        funr = read(fidr, "fun")
+        checkfuns(fun, funr)
+        function_referencing_module_r = read(fidr, "function_referencing_module")
+        checkfuns(function_referencing_module, function_referencing_module_r)
         @check fidr T
         @check fidr char
         @check fidr unicode_char
