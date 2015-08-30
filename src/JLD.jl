@@ -311,6 +311,15 @@ readmmap(obj::JldDataset, args...) = readmmap(obj.plain, args...)
 end
 @compat read(parent::Union{JldFile,JldGroup}, name::Symbol) = read(parent,bytestring(string(name)))
 
+function read(obj::JldGroup)
+    nms = names(obj)
+    val = Dict{ByteString, Any}()
+    for nm in nms
+        val[nm] = read(obj[nm])
+    end
+    return val
+end
+
 function read(obj::JldDataset)
     dtype = datatype(obj.plain)
     dspace_id = HDF5.h5d_get_space(obj.plain)
