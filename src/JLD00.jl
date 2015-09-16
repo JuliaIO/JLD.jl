@@ -24,6 +24,11 @@ else
     julia_type(s::AbstractString) = _julia_type(s)
 end
 
+if VERSION >= v"0.4.0-dev+5379"
+    # Just rename the uses when we drop 0.3 support
+    const UnionType = Union
+end
+
 const magic_base = "Julia data file (HDF5), version "
 const version_current = "0.0.2"
 const pathrefs = "/_refs"
@@ -367,7 +372,7 @@ function read{T<:HDF5BitsKind,M,N}(obj::JldDataset, ::Type{Array{Array{T,N},M}})
 end
 
 # Nothing
-read(obj::JldDataset, ::Type{Nothing}) = nothing
+read(obj::JldDataset, ::Type{@compat Void}) = nothing
 read(obj::JldDataset, ::Type{Bool}) = read(obj, UInt8) != 0
 
 # Types
@@ -567,7 +572,7 @@ end
 
 
 # Write nothing
-function write(parent::Union(JldFile, JldGroup), name::ByteString, n::Nothing, astype::ASCIIString)
+function write(parent::Union(JldFile, JldGroup), name::ByteString, n::@compat(Void), astype::ASCIIString)
     local dspace, dset
     try
         dspace = dataspace(nothing)
@@ -579,7 +584,7 @@ function write(parent::Union(JldFile, JldGroup), name::ByteString, n::Nothing, a
         close(dset)
     end
 end
-write(parent::Union(JldFile, JldGroup), name::ByteString, n::Nothing) = write(parent, name, n, "Nothing")
+write(parent::Union(JldFile, JldGroup), name::ByteString, n::@compat(Void)) = write(parent, name, n, "Nothing")
 
 # Types
 # the first is needed to avoid an ambiguity warning
@@ -969,9 +974,9 @@ end
 ### Converting Julia types to fully qualified names
 full_typename(jltype::UnionType) = @sprintf "Union(%s)" join(map(full_typename, jltype.types), ",")
 function full_typename(tv::TypeVar)
-    if is(tv.lb, None) && is(tv.ub, Any)
+    if is(tv.lb, Union()) && is(tv.ub, Any)
         "TypeVar(:$(tv.name))"
-    elseif is(tv.lb, None)
+    elseif is(tv.lb, Union())
         "TypeVar(:$(tv.name),$(full_typename(tv.ub)))"
     else
         "TypeVar(:$(tv.name),$(full_typename(tv.lb)),$(full_typename(tv.ub)))"
