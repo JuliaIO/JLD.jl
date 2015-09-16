@@ -9,9 +9,8 @@ Note that \*.jld files are "just" HDF5 files, and consequently can be read by an
 
 To get started using Julia data files, load the JLD module:
 ```
-using HDF5, JLD
+using JLD
 ```
-JLD is built on top of HDF5, which is why you need to import HDF5 first.
 
 \*.jld files are created or opened in the following way:
 ```julia
