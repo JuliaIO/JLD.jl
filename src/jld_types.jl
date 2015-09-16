@@ -74,7 +74,7 @@ end
 
 # If parent is nothing, we are creating the datatype in memory for
 # validation, so don't commit it
-commit_datatype(parent::Nothing, dtype::HDF5Datatype, T::ANY) =
+commit_datatype(parent::@compat(Void), dtype::HDF5Datatype, T::ANY) =
     JldDatatype(dtype, -1)
 
 # The HDF5 library loses track of relationships among committed types
@@ -141,7 +141,7 @@ jlconvert!(out::Ptr, T::BitsKindTypes, ::JldFile, ptr::Ptr) = _jlconvert_bits!(o
 
 ## Void/Nothing
 
-typealias VoidType Type{Nothing}
+typealias VoidType Type{@compat(Void)}
 
 gen_jlconvert(typeinfo::JldTypeInfo, T::VoidType) = nothing
 
