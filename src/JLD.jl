@@ -609,7 +609,7 @@ function _write(parent::Union(JldFile, JldGroup),
     # Discard "line" expressions
     keep = trues(length(args))
     for i = 1:length(args)
-        if isa(args[i], Expr) && args[i].head == :line
+        if (isa(args[i], Expr) && args[i].head == :line) || isa(args[i], LineNumberNode)
             keep[i] = false
         end
     end

@@ -273,11 +273,11 @@ function checkexpr(a::Expr, b::Expr)
     i = 1
     j = 1
     while i <= length(a.args) && j <= length(b.args)
-        if isa(a.args[i], Expr) && a.args[i].head == :line
+        if (isa(a.args[i], Expr) && a.args[i].head == :line) || isa(a.args[i], LineNumberNode)
             i += 1
             continue
         end
-        if isa(b.args[j], Expr) && b.args[j].head == :line
+        if (isa(b.args[j], Expr) && b.args[j].head == :line) || isa(b.args[j], LineNumberNode)
             j += 1
             continue
         end
@@ -320,11 +320,11 @@ function checkfunexpr(f_body::Expr, g_body::Expr)
     i = 1
     j = 1
     while i <= length(f_body.args) && j <= length(g_body.args)
-        if isa(f_body.args[i], Expr) && ((f_body.args[i].head == :line) || isAssertAny(f_body.args[i]))
+        if (isa(f_body.args[i], Expr) && ((f_body.args[i].head == :line) || isAssertAny(f_body.args[i]))) || isa(f_body.args[i], LineNumberNode)
             i += 1
             continue
         end
-        if isa(g_body.args[j], Expr) && ((g_body.args[j].head == :line) || isAssertAny(g_body.args[j]))
+        if (isa(g_body.args[j], Expr) && ((g_body.args[j].head == :line) || isAssertAny(g_body.args[j]))) || isa(g_body.args[i], LineNumberNode)
             j += 1
             continue
         end
