@@ -48,11 +48,11 @@ function JldTypeInfo(parent::JldFile, types::TypesType, commit::Bool)
     end
     JldTypeInfo(dtypes, offsets, offset)
 end
-JldTypeInfo(parent::JldFile, T::ANY, commit::Bool) =
+JldTypeInfo(parent::JldFile, T::Any, commit::Bool) =
     JldTypeInfo(parent, T.types, commit)
 
 # Write an HDF5 datatype to the file
-function commit_datatype(parent::JldFile, dtype::HDF5Datatype, T::ANY)
+function commit_datatype(parent::JldFile, dtype::HDF5Datatype, T::Any)
     pparent = parent.plain
     if !exists(pparent, pathtypes)
         gtypes = g_create(pparent, pathtypes)
@@ -74,7 +74,7 @@ end
 
 # If parent is nothing, we are creating the datatype in memory for
 # validation, so don't commit it
-commit_datatype(parent::Nothing, dtype::HDF5Datatype, T::ANY) =
+commit_datatype(parent::Nothing, dtype::HDF5Datatype, T::Any) =
     JldDatatype(dtype, -1)
 
 # The HDF5 library loses track of relationships among committed types
@@ -374,14 +374,14 @@ end
 # For cases not defined above: If the type is mutable and non-empty,
 # this is a reference. If the type is immutable, this is a type itself.
 if INLINE_POINTER_IMMUTABLE
-    h5fieldtype(parent::JldFile, T::ANY, commit::Bool) =
+    h5fieldtype(parent::JldFile, T::Any, commit::Bool) =
         isleaftype(T) && (!T.mutable || T.size == 0) ? h5type(parent, T, commit) : JLD_REF_TYPE
 else
-    h5fieldtype(parent::JldFile, T::ANY, commit::Bool) =
+    h5fieldtype(parent::JldFile, T::Any, commit::Bool) =
         isleaftype(T) && (!T.mutable || T.size == 0) && T.pointerfree ? h5type(parent, T, commit) : JLD_REF_TYPE
 end
 
-function h5type(parent::JldFile, T::ANY, commit::Bool)
+function h5type(parent::JldFile, T::Any, commit::Bool)
     !isa(T, DataType) && unknown_type_err(T)
     T = T::DataType
 
@@ -415,7 +415,7 @@ function h5type(parent::JldFile, T::ANY, commit::Bool)
 end
 
 # Normal objects
-function _gen_jlconvert_type(typeinfo::JldTypeInfo, T::ANY)
+function _gen_jlconvert_type(typeinfo::JldTypeInfo, T::Any)
     ex = Expr(:block)
     args = ex.args
     for i = 1:length(typeinfo.dtypes)
@@ -441,7 +441,7 @@ function _gen_jlconvert_type(typeinfo::JldTypeInfo, T::ANY)
 end
 
 # Immutables
-function _gen_jlconvert_immutable(typeinfo::JldTypeInfo, T::ANY)
+function _gen_jlconvert_immutable(typeinfo::JldTypeInfo, T::Any)
     ex = Expr(:block)
     args = ex.args
     jloffsets = fieldoffsets(T)
@@ -516,7 +516,7 @@ function _gen_jlconvert_immutable(typeinfo::JldTypeInfo, T::ANY)
 end
 
 const DONT_STORE_SINGLETON_IMMUTABLES = VERSION >= v"0.4.0-dev+385"
-function gen_jlconvert(typeinfo::JldTypeInfo, T::ANY)
+function gen_jlconvert(typeinfo::JldTypeInfo, T::Any)
     haskey(JLCONVERT_DEFINED, T) && return
 
     if isempty(fieldnames(T))
@@ -575,7 +575,7 @@ gen_h5convert(parent::JldFile, T) =
     haskey(H5CONVERT_DEFINED, T) || _gen_h5convert(parent, T)
 
 # There is no point in specializing this
-function _gen_h5convert(parent::JldFile, T::ANY)
+function _gen_h5convert(parent::JldFile, T::Any)
     dtype = parent.jlh5type[T].dtype
     istuple = isa(T, TupleType)
 
