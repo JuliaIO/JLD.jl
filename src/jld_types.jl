@@ -120,7 +120,7 @@ Base.convert(::Type{HDF5.Hid}, x::JldDatatype) = x.dtype.id
 ## HDF5 bits kinds
 
 # This construction prevents these methods from getting called on type unions
-@eval typealias BitsKindTypes Union($(map(x->Type{x}, HDF5.HDF5BitsKind.types)...))
+@eval typealias BitsKindTypes @compat(Union{$(map(x->Type{x}, HDF5.HDF5BitsKind.types)...)})
 
 h5fieldtype(parent::JldFile, T::BitsKindTypes, ::Bool) =
     h5type(parent, T, false)
@@ -165,13 +165,13 @@ gen_h5convert{T<:ByteString}(::JldFile, ::Type{T}) = nothing
 h5convert!(out::Ptr, ::JldFile, x::ByteString, ::JldWriteSession) =
     unsafe_store!(convert(Ptr{Ptr{UInt8}}, out), pointer(x))
 
-function jlconvert(T::Union(Type{ASCIIString}, Type{UTF8String}), ::JldFile, ptr::Ptr)
+function jlconvert(T::(@compat Union{Type{ASCIIString}, Type{UTF8String}}), ::JldFile, ptr::Ptr)
     strptr = unsafe_load(convert(Ptr{Ptr{UInt8}}, ptr))
     n = @compat Int(ccall(:strlen, Csize_t, (Ptr{UInt8},), strptr))
     T(pointer_to_array(strptr, n, true))
 end
 
-function jlconvert(T::Union(Type{ByteString}), ::JldFile, ptr::Ptr)
+function jlconvert(T::(@compat Union{Type{ByteString}}), ::JldFile, ptr::Ptr)
     strptr = unsafe_load(convert(Ptr{Ptr{UInt8}}, ptr))
     str = bytestring(strptr)
     Libc.free(strptr)
@@ -229,11 +229,11 @@ jlconvert(::Type{Symbol}, file::JldFile, ptr::Ptr) = symbol(jlconvert(UTF8String
 
 ## BigInts and BigFloats
 
-h5fieldtype(parent::JldFile, T::Union(Type{BigInt}, Type{BigFloat}), commit::Bool) =
+h5fieldtype(parent::JldFile, T::(@compat Union{Type{BigInt}, Type{BigFloat}}), commit::Bool) =
     h5type(parent, T, commit)
 
 # Stored as a compound type that contains a variable length string
-function h5type(parent::JldFile, T::Union(Type{BigInt}, Type{BigFloat}), commit::Bool)
+function h5type(parent::JldFile, T::(@compat Union{Type{BigInt}, Type{BigFloat}}), commit::Bool)
     haskey(parent.jlh5type, T) && return parent.jlh5type[T]
     id = HDF5.h5t_create(HDF5.H5T_COMPOUND, 8)
     HDF5.h5t_insert(id, "data_", 0, h5fieldtype(parent, ASCIIString, commit))
@@ -241,7 +241,7 @@ function h5type(parent::JldFile, T::Union(Type{BigInt}, Type{BigFloat}), commit:
     commit ? commit_datatype(parent, dtype, T) : JldDatatype(dtype, -1)
 end
 
-gen_h5convert(::JldFile, ::Union(Type{BigInt}, Type{BigFloat})) = nothing
+gen_h5convert(::JldFile, ::(@compat Union{Type{BigInt}, Type{BigFloat}})) = nothing
 function h5convert!(out::Ptr, file::JldFile, x::BigInt, wsession::JldWriteSession)
     str = base(62, x)
     push!(wsession.persist, str)
@@ -291,9 +291,9 @@ jlconvert{T<:Type}(::Type{T}, file::JldFile, ptr::Ptr) = julia_type(jlconvert(UT
 
 h5type{T<:Ptr}(parent::JldFile, ::Type{T}, ::Bool) = throw(PointerException())
 
-## Union()
+## Union{}
 
-h5fieldtype(parent::JldFile, ::Type{Union()}, ::Bool) = JLD_REF_TYPE
+h5fieldtype(parent::JldFile, ::Type{(@compat Union{})}, ::Bool) = JLD_REF_TYPE
 
 ## Arrays
 
@@ -565,7 +565,7 @@ opaquesize(t::DataType) = max(1, t.size)
 # INLINE_TUPLE or INLINE_POINTER_IMMUTABLE is true.
 uses_reference(T::DataType) = !T.pointerfree
 uses_reference(::TupleType) = true
-uses_reference(::UnionType) = true
+uses_reference(::@compat(UnionType)) = true
 
 unknown_type_err(T) =
     error("""$T is not of a type supported by JLD
