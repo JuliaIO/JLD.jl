@@ -11,6 +11,7 @@ notifications:
 script:
     - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
     - julia -e 'Pkg.clone(pwd()); Pkg.add("JLDArchives"); Pkg.checkout("JLDArchives")'
+    - julia -e 'Pkg.add("HDF5"); Pkg.checkout("HDF5")'
     - julia -e 'Pkg.test("JLD",coverage=true); Pkg.test("JLDArchives",coverage=true)'
 after_success:
     - if [ $TRAVIS_JULIA_VERSION = "nightly" ]; then julia -e 'cd(Pkg.dir("JLD")); Pkg.add("Coverage"); using Coverage; Codecov.submit(process_folder())'; fi
