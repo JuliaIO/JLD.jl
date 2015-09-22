@@ -20,6 +20,11 @@ const name_type_attr = "julia type"
 
 typealias BitsKindOrByteString Union(HDF5BitsKind, ByteString)
 
+if VERSION >= v"0.4.0-dev+5379"
+    # Just rename the uses when we drop 0.3 support
+    const UnionType = Union
+end
+
 ### Dummy types used for converting attribute strings to Julia types
 type UnsupportedType; end
 type UnconvertedType; end
@@ -768,7 +773,7 @@ if VERSION >= v"0.4.0-dev+4319"
 end
 
 # function to convert string(mod::Module) back to mod::Module
-function modname2mod(modname::String)
+function modname2mod(modname::AbstractString)
     parse(modname == "Main" ? modname : string("Main.", modname))
 end
 
@@ -782,7 +787,7 @@ function func2expr(fun::Function)
 end
 immutable AnonymousFunctionSerializer
     expr::Expr
-    mod::String
+    mod::AbstractString
     AnonymousFunctionSerializer(fun::Function) = new(func2expr(fun), string(fun.code.module))
 end
 readas(ast::AnonymousFunctionSerializer) = eval(modname2mod(ast.mod)).eval(ast.expr)
@@ -791,7 +796,7 @@ writeas(fun::Function) = AnonymousFunctionSerializer(fun)
 if VERSION >= v"0.4.0-dev+6807"
     # Serializer for GlobalRef
     immutable GlobalRefSerializer
-        mod::String
+        mod::AbstractString
         name::Symbol
         GlobalRefSerializer(g::GlobalRef) = new(string(g.mod), g.name)
     end
@@ -897,9 +902,9 @@ function full_typename(io::IO, file::JldFile, jltype::UnionType)
     print(io, ')')
 end
 function full_typename(io::IO, file::JldFile, tv::TypeVar)
-    if is(tv.lb, None) && is(tv.ub, Any)
+    if is(tv.lb, Union()) && is(tv.ub, Any)
         print(io, "TypeVar(:", tv.name, ")")
-    elseif is(tv.lb, None)
+    elseif is(tv.lb, Union())
         print(io, "TypeVar(:", tv.name, ",")
         full_typename(io, file, tv.ub)
         print(io, ')')

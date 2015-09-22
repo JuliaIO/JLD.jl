@@ -196,7 +196,7 @@ none = Union()
 nonearr = Array(Union(), 5)
 # nothing/Void
 scalar_nothing = nothing
-vector_nothing = Union(Int,Nothing)[1,nothing]
+vector_nothing = Union(Int,@compat(Void))[1,nothing]
 
 # some data big enough to ensure that compression is used:
 Abig = kron(eye(10), rand(20,20))
@@ -225,8 +225,8 @@ end
 # Type that overloads != so that it is not boolean
 type NALikeType; end
 Base.(:(!=))(::NALikeType, ::NALikeType) = NALikeType()
-Base.(:(!=))(::NALikeType, ::Nothing) = NALikeType()
-Base.(:(!=))(::Nothing, ::NALikeType) = NALikeType()
+Base.(:(!=))(::NALikeType, ::@compat(Void)) = NALikeType()
+Base.(:(!=))(::@compat(Void), ::NALikeType) = NALikeType()
 natyperef = Any[NALikeType(), NALikeType()]
 
 iseq(x,y) = isequal(x,y)
@@ -243,7 +243,7 @@ function iseq(c1::Base.Sys.CPUinfo, c2::Base.Sys.CPUinfo)
     true
 end
 iseq(x::MyUnicodeStruct☺, y::MyUnicodeStruct☺) = (x.α == y.α && x.∂ₓα == y.∂ₓα)
-iseq(x::Array{None}, y::Array{None}) = size(x) == size(y)
+@compat iseq(x::Array{Union{}}, y::Array{Union{}}) = size(x) == size(y)
 macro check(fid, sym)
     ex = quote
         let tmp
