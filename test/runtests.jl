@@ -1,4 +1,5 @@
 using HDF5
+using Compat
 
 runtest(filename) = (println(filename); include(filename))
 

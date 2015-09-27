@@ -148,18 +148,18 @@ immutable Vague
 end
 vague = Vague("foo")
 # Immutable with a union of BitsTypes
-immutable BitsUnion
-    x::Union(Int64, Float64)
+@compat immutable BitsUnion
+    x::Union{Int64, Float64}
 end
 bitsunion = BitsUnion(5.0)
 # Immutable with a union of Types
-immutable TypeUnionField
-    x::Union(Type{Int64}, Type{Float64})
+@compat immutable TypeUnionField
+    x::Union{Type{Int64}, Type{Float64}}
 end
 typeunionfield = TypeUnionField(Int64)
 # Generic union type field
-immutable GenericUnionField
-    x::Union(Vector{Int},Int)
+@compat immutable GenericUnionField
+    x::Union{Vector{Int},Int}
 end
 genericunionfield = GenericUnionField(1)
 # Array references
@@ -192,11 +192,11 @@ bigdata = [1:10000;]
 bigints = big(3).^(1:100)
 bigfloats = big(3.2).^(1:100)
 # None
-none = Union()
-nonearr = Array(Union(), 5)
+@compat none = Union{}
+@compat nonearr = Array(Union{}, 5)
 # nothing/Void
 scalar_nothing = nothing
-vector_nothing = Union(Int,@compat(Void))[1,nothing]
+@compat vector_nothing = Union{Int,Void}[1,nothing]
 
 # some data big enough to ensure that compression is used:
 Abig = kron(eye(10), rand(20,20))
@@ -232,7 +232,7 @@ natyperef = Any[NALikeType(), NALikeType()]
 iseq(x,y) = isequal(x,y)
 iseq(x::MyStruct, y::MyStruct) = (x.len == y.len && x.data == y.data)
 iseq(x::MyImmutable, y::MyImmutable) = (isequal(x.x, y.x) && isequal(x.y, y.y) && isequal(x.z, y.z))
-iseq(x::Union(EmptyTI, EmptyTT), y::Union(EmptyTI, EmptyTT)) = isequal(x.x, y.x)
+@compat iseq(x::Union{EmptyTI, EmptyTT}, y::Union{EmptyTI, EmptyTT}) = isequal(x.x, y.x)
 iseq(c1::Array{Base.Sys.CPUinfo}, c2::Array{Base.Sys.CPUinfo}) = length(c1) == length(c2) && all([iseq(c1[i], c2[i]) for i = 1:length(c1)])
 function iseq(c1::Base.Sys.CPUinfo, c2::Base.Sys.CPUinfo)
     for n in fieldnames(Base.Sys.CPUinfo)
