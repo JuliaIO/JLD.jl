@@ -704,6 +704,9 @@ end
         HDF5.h5s_close(dsel_id)
     end
 end
+@compat function setindex!(dset::JldDataset, x::Number, indices::Union{Range{Int},Integer}...)
+    setindex!(dset, fill(x, map(length, indices)), indices...)
+end
 
 @compat getindex(dset::JldDataset, I::Union{Range{Int},Integer,Colon}...) = getindex(dset, ntuple(i-> isa(I[i], Colon) ? (1:size(dset,i)) : I[i], length(I))...)
 @compat setindex!(dset::JldDataset, x, I::Union{Range{Int},Integer,Colon}...) = setindex!(dset, x, ntuple(i-> isa(I[i], Colon) ? (1:size(dset,i)) : I[i], length(I))...)
