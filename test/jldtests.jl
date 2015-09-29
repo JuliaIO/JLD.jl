@@ -365,6 +365,26 @@ write(fid, "a", [1:3;])
 close(fid)
 rm(fn)
 
+# Hyperslab
+for compress in (false, true)
+    jldopen(fn, "w") do fid
+        write(fid, "a", [1:3;])
+        aset = fid["a"]
+        aset[1:2] = [5,7]
+        b = read(fid, "a")
+        @test b == [5,7,3]
+        @test aset[2:3] == [7,3]
+        aset[3] = 27
+        @test aset[1:3] == [5,7,27]
+        Arnd = rand(5,3)
+        write(fid, "A", Arnd)
+        Aset = fid["A"]
+        Aset[:,2] = 15
+        Arnd[:,2] = 15
+        @test read(fid, "A") == Arnd
+    end
+end
+
 
 for compress in (true,false)
     fid = jldopen(fn, "w", compress=compress)
