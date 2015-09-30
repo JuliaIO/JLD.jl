@@ -5,7 +5,7 @@
 VERSION >= v"0.4.0-dev+6521" && __precompile__()
 
 module JLD
-using HDF5, Compat
+using HDF5, FileIO, Compat
 # Add methods to...
 import HDF5: close, dump, exists, file, getindex, setindex!, g_create, g_open, o_delete, name, names, read, write,
              HDF5ReferenceObj, HDF5BitsKind, ismmappable, readmmap
@@ -1099,8 +1099,8 @@ macro load(filename, vars...)
 end
 
 # Save all the key-value pairs in the dict as top-level variables of the JLD
-function save(filename::AbstractString, dict::Associative; compress::Bool=false)
-    jldopen(filename, "w"; compress=compress) do file
+function FileIO.save(f::File{format"JLD"}, dict::Associative; compress::Bool=false)
+    jldopen(FileIO.filename(f), "w"; compress=compress) do file
         wsession = JldWriteSession()
         for (k,v) in dict
             if !isa(k, AbstractString)
@@ -1111,11 +1111,11 @@ function save(filename::AbstractString, dict::Associative; compress::Bool=false)
     end
 end
 # Or the names and values may be specified as alternating pairs
-function save(filename::AbstractString, name::AbstractString, value, pairs...; compress::Bool=false)
+function FileIO.save(f::File{format"JLD"}, name::AbstractString, value, pairs...; compress::Bool=false)
     if isodd(length(pairs)) || !isa(pairs[1:2:end], @compat Tuple{Vararg{AbstractString}})
         throw(ArgumentError("arguments must be in name-value pairs"))
     end
-    jldopen(filename, "w"; compress=compress) do file
+    jldopen(FileIO.filename(f), "w"; compress=compress) do file
         wsession = JldWriteSession()
         write(file, bytestring(name), value, wsession)
         for i=1:2:length(pairs)
@@ -1125,20 +1125,20 @@ function save(filename::AbstractString, name::AbstractString, value, pairs...; c
 end
 
 # load with just a filename returns a dictionary containing all the variables
-function load(filename::AbstractString)
-    jldopen(filename, "r") do file
+function FileIO.load(f::File{format"JLD"})
+    jldopen(FileIO.filename(f), "r") do file
         (ByteString => Any)[var => read(file, var) for var in names(file)]
     end
 end
 # When called with explicitly requested variable names, return each one
-function load(filename::AbstractString, varname::AbstractString)
-    jldopen(filename, "r") do file
+function FileIO.load(f::File{format"JLD"}, varname::AbstractString)
+    jldopen(FileIO.filename(f), "r") do file
         read(file, varname)
     end
 end
-load(filename::AbstractString, varnames::AbstractString...) = load(filename, varnames)
-function load(filename::AbstractString, varnames::@compat Tuple{Vararg{AbstractString}})
-    jldopen(filename, "r") do file
+FileIO.load(f::File{format"JLD"}, varnames::AbstractString...) = load(f, varnames)
+function FileIO.load(f::File{format"JLD"}, varnames::@compat Tuple{Vararg{AbstractString}})
+    jldopen(FileIO.filename(f), "r") do file
         map((var)->read(file, var), varnames)
     end
 end
