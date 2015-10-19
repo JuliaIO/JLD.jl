@@ -854,3 +854,30 @@ jldopen(fn, "r") do file
 end
 t2 = mtime(fn)
 @test t2 == t1
+
+@printf "Issue #257: groups\n"
+
+@printf "saving:\n"
+
+jldfile = "/tmp/testgroup.jld"
+
+jldopen(jldfile , "w") do file
+    g = g_create(file, "autocorr") # create a group
+    g["countsmapdistfreq"] = "abracadabra"
+    g["xvect"] = 1:20
+    file["stray"] = "cat"
+end
+
+@printf "loading:\n"
+
+a= load(jldfile)
+#Dict{Union(ASCIIString,UTF8String),Any} with 2 entries:
+#  "autocorr" => ["xvect"=>1:20,"countsmapdistfreq"=>"abracadabra"]
+#  "stray"    => "cat"
+
+using Base.Test
+
+@test typeof(a) == Dict{Union(ASCIIString,UTF8String),Any}
+@printf "Issue #257 passed\n"
+
+
