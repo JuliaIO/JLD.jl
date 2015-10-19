@@ -880,4 +880,3 @@ using Base.Test
 @test typeof(a) == Dict{Union(ASCIIString,UTF8String),Any}
 @printf "Issue #257 passed\n"
 
-
