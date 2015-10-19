@@ -503,6 +503,7 @@ for compress in (true,false)
         @test size(dsetA, 1) == size(A, 1)
         @test size(dsetA, 2) == size(A, 2)
         @test size(dsetA, 3) == size(A, 3)
+        @test eltype(dsetA) == Int
         @check fidr Aarray
         @check fidr str
         @check fidr stringsA

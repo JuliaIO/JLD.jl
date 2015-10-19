@@ -9,7 +9,7 @@ using HDF5, FileIO, Compat
 # Add methods to...
 import HDF5: close, dump, exists, file, getindex, setindex!, g_create, g_open, o_delete, name, names, read, write,
              HDF5ReferenceObj, HDF5BitsKind, ismmappable, readmmap
-import Base: convert, length, endof, show, done, next, ndims, start, delete!, size, sizeof
+import Base: convert, length, endof, show, done, next, ndims, start, delete!, eltype, size, sizeof
 
 const magic_base = "Julia data file (HDF5), version "
 const version_current = v"0.1"
@@ -258,6 +258,7 @@ end
 end
 @compat g_open(parent::Union{JldFile, JldGroup}, args...) = JldGroup(g_open(parent.plain, args...), file(parent))
 @compat name(p::Union{JldFile, JldGroup, JldDataset}) = name(p.plain)
+eltype(p::JldDataset) = eltype(p.plain)
 @compat exists(p::Union{JldFile, JldGroup, JldDataset}, path::ByteString) = exists(p.plain, path)
 @compat root(p::Union{JldFile, JldGroup, JldDataset}) = g_open(file(p), "/")
 @compat o_delete(parent::Union{JldFile, JldGroup}, args...) = o_delete(parent.plain, args...)
