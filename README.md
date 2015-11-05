@@ -62,6 +62,17 @@ specific and just request particular variables of interest. For example, `z =
 load("/tmp/myfile.jld", "arr")` will return the value of `arr` from the file
 and assign it back to z.
 
+JLD uses the [FileIO](https://github.com/JuliaIO/FileIO.jl) package to provide a generic
+interface to `save` and `load` files. However this means that the user needs to
+explicitly request for the JLD format to be used while saving a new file.
+```julia
+save("/tmp/foo","bar",0.0) # ambiguous
+save("/tmp/foo.jld","bar",0.0) # JLD format is inferred from the file extension
+using FileIO; save(File(format"JLD","/tmp/foo"),"bar",0.0) # JLD format explicitly requested using FileIO
+```
+This problem is not encountered while loading a JLD file because FileIO can use
+magic bytes at the beginning of the file to infer its data format.
+
 There are also convenience macros `@save` and `@load` that work on the
 variables themselves. `@save "/tmp/myfile.jld" t z` will create a file with
 just `t` and `z`; if you don't mention any variables, then it saves all the
