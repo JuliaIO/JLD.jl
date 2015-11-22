@@ -30,13 +30,16 @@ close(file)
 ```
 Use the `delete!` function to delete `JldDataset`s and their associated references.  Directly deleting a `JldDataset` with `o_delete` will leave behind unwanted objects that may cause future errors, especially if you reuse the same path in the JLD file.
 
-To specify compression, use the `compress` keyword argument to
-`jldopen` or `save`, e.g. `jldopen("mydata.jld", "w", compress=true)`
-or `save("mydata.jld", "A", A, compress=true)`.  This uses
-[Blosc](http://www.blosc.org/) compression, which imposes very little
-performance penalty.  (The `compress` keyword need not be specified
-when you open a file for reading: compressed datasets are
-automatically decompressed when they are read.)
+To specify compression, use the `compress` keyword argument to `jldopen` or
+`save`, e.g. `jldopen("mydata.jld", "w", compress=true)` or `save("mydata.jld",
+"A", A, compress=true)`. The `compress` keyword need not be specified when you
+open a file for reading: compressed datasets are automatically decompressed when
+they are read.
+
+By default, his uses [Blosc](http://www.blosc.org/) compression, which imposes
+very little performance penalty, but leads to HDF5 files that are not portable.
+If you also specify `compatible=true`, then a different (and often slower)
+compression method is used that leads to portable HDF5 files.
 
 JLD files can be opened with the `mmaparrays` option, which if true returns "qualified" array data sets as arrays using [memory-mapping](hdf5.md#memory-mapping):
 

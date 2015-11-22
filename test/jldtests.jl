@@ -365,9 +365,15 @@ write(fid, "a", [1:3;])
 close(fid)
 rm(fn)
 
+fid = jldopen(fn, "w", compatible = true, compress = true)
+write(fid, "a", [1:3;])
+@test ismmappable(fid["a"]) == false
+close(fid)
+rm(fn)
+
 # Hyperslab
-for compress in (false, true)
-    jldopen(fn, "w") do fid
+for compatible in (false, true), compress in (false, true)
+    jldopen(fn, "w", compatible=compatible, compress=compress) do fid
         write(fid, "a", [1:3;])
         aset = fid["a"]
         aset[1:2] = [5,7]
@@ -386,8 +392,8 @@ for compress in (false, true)
 end
 
 
-for compress in (true,false)
-    fid = jldopen(fn, "w", compress=compress)
+for compatible in (false, true), compress in (false, true)
+    fid = jldopen(fn, "w", compatible=compatible, compress=compress)
     @write fid x
     @write fid A
     @write fid Aarray
@@ -633,7 +639,7 @@ for compress in (true,false)
     end
 end # compress in (true,false)
 
-for compress in (false,true)
+for compatible in (false, true), compress in (false, true)
     # object references in a write session
     x = ObjRefType()
     a = [x, x]
@@ -656,7 +662,7 @@ for compress in (false,true)
     end
 
     # do syntax
-    jldopen(fn, "w"; compress=compress) do fid
+    jldopen(fn, "w", compatible=compatible, compress=compress) do fid
         g_create(fid, "mygroup") do g
             write(g, "x", 3.2)
         end
@@ -671,7 +677,7 @@ for compress in (false,true)
 
     # Function load() and save() syntax
     d = Dict([("x",3.2), ("β",β), ("A",A)])
-    save(fn, d, compress=compress)
+    save(fn, d, compatible=compatible, compress=compress)
     d2 = load(fn)
     @assert d == d2
     β2 = load(fn, "β")
@@ -680,12 +686,12 @@ for compress in (false,true)
     @assert β == β2
     @assert A == A2
 
-    save(fn, "x", 3.2, "β", β, "A", A, compress=compress)
+    save(fn, "x", 3.2, "β", β, "A", A, compatible=compatible, compress=compress)
     d3 = load(fn)
     @assert d == d3
 
     # #71
-    jldopen(fn, "w", compress=compress) do file
+    jldopen(fn, "w", compatible=compatible, compress=compress) do file
         file["a"] = 1
     end
     jldopen(fn, "r") do file
@@ -698,13 +704,13 @@ for compress in (false,true)
     @assert i106 == Mod106.typ(@compat(Int64(1)), Mod106.UnexportedT)
 
     # bracket syntax for datasets
-    jldopen(fn, "w", compress=compress) do file
+    jldopen(fn, "w", compatible=compatible, compress=compress) do file
         file["a"] = [1:100;]
         file["b"] = [x*y for x=1:10,y=1:10]
         file["c"] = Any[1, 2, 3]
         file["d"] = [1//2, 1//4, 1//8]
     end
-    jldopen(fn, "r+", compress=compress) do file
+    jldopen(fn, "r+", compatible=compatible, compress=compress) do file
         @test(file["a"][1:50] == [1:50;])
         file["a"][1:50] = 1:2:100
         @test(file["a"][1:50] == [1:2:100;])
@@ -739,7 +745,7 @@ for compress in (false,true)
     end
 
     # delete!
-    jldopen(fn, "w", compress=compress) do file
+    jldopen(fn, "w", compatible=compatible, compress=compress) do file
         file["ms"] = ms
         delete!(file, "ms")
         file["ms"] = β

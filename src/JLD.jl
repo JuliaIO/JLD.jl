@@ -56,6 +56,7 @@ type JldFile <: HDF5.DataFile
     toclose::Bool
     writeheader::Bool
     mmaparrays::Bool
+    compatible::Bool
     compress::Bool
     h5jltype::Dict{Int,Type}
     jlh5type::Dict{Type,JldDatatype}
@@ -66,8 +67,9 @@ type JldFile <: HDF5.DataFile
 
     function JldFile(plain::HDF5File, version::VersionNumber=version_current, toclose::Bool=true,
                      writeheader::Bool=false, mmaparrays::Bool=false,
-                     compress::Bool=false)
-        f = new(plain, version, toclose, writeheader, mmaparrays, compress & !mmaparrays,
+                     compatible::Bool=false, compress::Bool=false)
+        f = new(plain, version, toclose, writeheader, mmaparrays, compatible,
+                compress & !mmaparrays,
                 Dict{HDF5Datatype,Type}(), Dict{Type,HDF5Datatype}(),
                 Dict{HDF5ReferenceObj,WeakRef}(), ByteString[])
         if toclose
@@ -86,6 +88,9 @@ immutable JldDataset
     plain::HDF5Dataset
     file::JldFile
 end
+
+iscompatible(f::JldFile) = f.compatible
+iscompatible(g::JldGroup) = g.file.compatible
 
 iscompressed(f::JldFile) = f.compress
 iscompressed(g::JldGroup) = g.file.compress
@@ -139,7 +144,7 @@ end
 @compat close(g::Union{JldGroup, JldDataset}) = close(g.plain)
 show(io::IO, fid::JldFile) = isvalid(fid.plain) ? print(io, "Julia data file version ", fid.version, ": ", fid.plain.filename) : print(io, "Julia data file (closed): ", fid.plain.filename)
 
-function jldopen(filename::AbstractString, rd::Bool, wr::Bool, cr::Bool, tr::Bool, ff::Bool; mmaparrays::Bool=false, compress::Bool=false)
+function jldopen(filename::AbstractString, rd::Bool, wr::Bool, cr::Bool, tr::Bool, ff::Bool; mmaparrays::Bool=false, compatible::Bool=false, compress::Bool=false)
     local fj
     if ff && !wr
         error("Cannot append to a write-only file")
@@ -163,7 +168,7 @@ function jldopen(filename::AbstractString, rd::Bool, wr::Bool, cr::Bool, tr::Boo
             finally
                 close(p)
             end
-            fj = JldFile(HDF5File(f, filename, false), version, true, true, mmaparrays, compress)
+            fj = JldFile(HDF5File(f, filename, false), version, true, true, mmaparrays, compatible, compress)
             # Record creator information. Don't use any fancy types here,
             # because we want to be able to read this even when formats change.
             write(fj, joinpath(pathcreator, "JULIA_MAJOR"), VERSION.major)
@@ -199,7 +204,7 @@ function jldopen(filename::AbstractString, rd::Bool, wr::Bool, cr::Bool, tr::Boo
                     fj = JLD00.jldopen(filename, rd, wr, cr, tr, ff; mmaparrays=mmaparrays)
                 else
                     f = HDF5.h5f_open(filename, wr ? HDF5.H5F_ACC_RDWR : HDF5.H5F_ACC_RDONLY, pa.id)
-                    fj = JldFile(HDF5File(f, filename, false), version, true, cr|wr, mmaparrays, compress)
+                    fj = JldFile(HDF5File(f, filename, false), version, true, cr|wr, mmaparrays, compatible, compress)
                     # Load any required files/packages
                     if exists(fj, pathrequire)
                         r = read(fj, pathrequire)
@@ -212,7 +217,7 @@ function jldopen(filename::AbstractString, rd::Bool, wr::Bool, cr::Bool, tr::Boo
             else
                 if ishdf5(filename)
                     println("$filename is an HDF5 file, but it is not a recognized Julia data file. Opening anyway.")
-                    fj = JldFile(h5open(filename, rd, wr, cr, tr, ff), version_current, true, false, mmaparrays, compress)
+                    fj = JldFile(h5open(filename, rd, wr, cr, tr, ff), version_current, true, false, mmaparrays, compatible, compress)
                 else
                     error("$filename does not seem to be a Julia data or HDF5 file")
                 end
@@ -224,10 +229,10 @@ function jldopen(filename::AbstractString, rd::Bool, wr::Bool, cr::Bool, tr::Boo
     return fj
 end
 
-function jldopen(fname::AbstractString, mode::AbstractString="r"; mmaparrays::Bool=false, compress::Bool=false)
-    mode == "r"  ? jldopen(fname, true , false, false, false, false, mmaparrays=mmaparrays, compress=compress) :
-    mode == "r+" ? jldopen(fname, true , true , false, false, false, mmaparrays=mmaparrays, compress=compress) :
-    mode == "w"  ? jldopen(fname, false, true , true , true , false, mmaparrays=mmaparrays, compress=compress) :
+function jldopen(fname::AbstractString, mode::AbstractString="r"; mmaparrays::Bool=false, compatible::Bool=false, compress::Bool=false)
+    mode == "r"  ? jldopen(fname, true , false, false, false, false, mmaparrays=mmaparrays, compatible=compatible, compress=compress) :
+    mode == "r+" ? jldopen(fname, true , true , false, false, false, mmaparrays=mmaparrays, compatible=compatible, compress=compress) :
+    mode == "w"  ? jldopen(fname, false, true , true , true , false, mmaparrays=mmaparrays, compatible=compatible, compress=compress) :
 #     mode == "w+" ? jldopen(fname, true , true , true , true , false) :
 #     mode == "a"  ? jldopen(fname, false, true , true , false, true ) :
 #     mode == "a+" ? jldopen(fname, true , true , true , false, true ) :
@@ -513,7 +518,12 @@ function dset_create_properties(parent, sz::Int, obj, chunk=Int[]; mmap::Bool=fa
     if iscompressed(parent) && !isempty(chunk)
         p = p_create(HDF5.H5P_DATASET_CREATE)
         p["chunk"] = chunk
-        p["blosc"] = 5
+        if iscompatible(parent)
+            p["shuffle"] = ()
+            p["compress"] = 5
+        else
+            p["blosc"] = 5
+        end
         return p, true
     else
         return HDF5.DEFAULT_PROPERTIES, false
@@ -1144,8 +1154,8 @@ macro load(filename, vars...)
 end
 
 # Save all the key-value pairs in the dict as top-level variables of the JLD
-function FileIO.save(f::File{format"JLD"}, dict::Associative; compress::Bool=false)
-    jldopen(FileIO.filename(f), "w"; compress=compress) do file
+function FileIO.save(f::File{format"JLD"}, dict::Associative; compatible::Bool=false, compress::Bool=false)
+    jldopen(FileIO.filename(f), "w"; compatible=compatible, compress=compress) do file
         wsession = JldWriteSession()
         for (k,v) in dict
             if !isa(k, AbstractString)
@@ -1156,11 +1166,11 @@ function FileIO.save(f::File{format"JLD"}, dict::Associative; compress::Bool=fal
     end
 end
 # Or the names and values may be specified as alternating pairs
-function FileIO.save(f::File{format"JLD"}, name::AbstractString, value, pairs...; compress::Bool=false)
+function FileIO.save(f::File{format"JLD"}, name::AbstractString, value, pairs...; compatible::Bool=false, compress::Bool=false)
     if isodd(length(pairs)) || !isa(pairs[1:2:end], @compat Tuple{Vararg{AbstractString}})
         throw(ArgumentError("arguments must be in name-value pairs"))
     end
-    jldopen(FileIO.filename(f), "w"; compress=compress) do file
+    jldopen(FileIO.filename(f), "w"; compatible=compatible, compress=compress) do file
         wsession = JldWriteSession()
         write(file, bytestring(name), value, wsession)
         for i=1:2:length(pairs)
