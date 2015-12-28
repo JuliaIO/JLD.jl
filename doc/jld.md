@@ -36,7 +36,7 @@ To specify compression, use the `compress` keyword argument to `jldopen` or
 open a file for reading: compressed datasets are automatically decompressed when
 they are read.
 
-By default, his uses [Blosc](http://www.blosc.org/) compression, which imposes
+By default, this uses [Blosc](http://www.blosc.org/) compression, which imposes
 very little performance penalty, but leads to HDF5 files that are not portable.
 If you also specify `compatible=true`, then a different (and often slower)
 compression method is used that leads to portable HDF5 files.
