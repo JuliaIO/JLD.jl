@@ -1178,6 +1178,7 @@ function FileIO.save(f::File{format"JLD"}, name::AbstractString, value, pairs...
         end
     end
 end
+FileIO.save(f::File{format"JLD"}, value...; kwargs...) = error("Must supply a name for each variable")
 
 # load with just a filename returns a dictionary containing all the variables
 function FileIO.load(f::File{format"JLD"})

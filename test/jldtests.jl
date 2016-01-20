@@ -896,3 +896,6 @@ a = load(fn)
 @test a["autocorr"]["xvect"] == 1:20
 @test a["autocorr"]["countsmapdistfreq"] == "abracadabra"
 @test a["stray"] == "cat"
+
+# Test whether we get a stack overflow with FileIO interface (#46)
+@test_throws ErrorException save(fn, 7)
