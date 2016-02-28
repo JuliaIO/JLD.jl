@@ -444,7 +444,11 @@ end
 function _gen_jlconvert_immutable(typeinfo::JldTypeInfo, T::ANY)
     ex = Expr(:block)
     args = ex.args
-    jloffsets = fieldoffsets(T)
+    if VERSION >= v"0.5.0-dev+2285"
+        jloffsets = map(idx->fieldoffset(T, idx), 1:nfields(T))
+    else
+        jloffsets = fieldoffsets(T)
+    end
     if T.pointerfree
         for i = 1:length(typeinfo.dtypes)
             h5offset = typeinfo.offsets[i]
