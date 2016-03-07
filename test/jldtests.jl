@@ -420,8 +420,10 @@ for compatible in (false, true), compress in (false, true)
     @write fid syms
     @write fid d
     @write fid ex
-    @write fid fun
-    @write fid function_referencing_module
+    if VERSION < v"0.5.0-dev"
+        @write fid fun
+        @write fid function_referencing_module
+    end
     @write fid T
     @write fid char
     @write fid unicode_char
@@ -538,12 +540,14 @@ for compatible in (false, true), compress in (false, true)
         @check fidr d
         exr = read(fidr, "ex")   # line numbers are stripped, don't expect equality
         checkexpr(ex, exr)
-        funr = read(fidr, "fun")
-        checkfuns(fun, funr)
-        @test funr(3,5) == 38
-        function_referencing_module_r = read(fidr, "function_referencing_module")
-        checkfuns(function_referencing_module, function_referencing_module_r)
-        @test function_referencing_module_r(3,7) == 34
+        if VERSION < v"0.5.0-dev"
+            funr = read(fidr, "fun")
+            checkfuns(fun, funr)
+            @test funr(3,5) == 38
+            function_referencing_module_r = read(fidr, "function_referencing_module")
+            checkfuns(function_referencing_module, function_referencing_module_r)
+            @test function_referencing_module_r(3,7) == 34
+        end
         @check fidr T
         @check fidr char
         @check fidr unicode_char
