@@ -868,7 +868,7 @@ is_valid_type_ex(s::Symbol) = true
 is_valid_type_ex(s::QuoteNode) = true
 is_valid_type_ex{T}(::T) = isbits(T)
 is_valid_type_ex(e::Expr) = ((e.head == :curly || e.head == :tuple || e.head == :.) && all(is_valid_type_ex, e.args)) ||
-                            (e.head == :call && (e.args[1] == :Union || e.args[1] == :TypeVar))
+                            (e.head == :call && (e.args[1] == :Union || e.args[1] == :TypeVar || e.args[1] == :symbol))
 
 if VERSION >= v"0.4.0-dev+1419"
     const typemap_Core = @compat Dict(
@@ -945,7 +945,14 @@ end
 function julia_type(s::AbstractString)
     typ = get(_typedict, s, UnconvertedType)
     if typ == UnconvertedType
-        typ = julia_type(fixtypes(parse(s)))
+        local sp
+        try
+            sp = parse(s)
+        catch err
+            println("error parsing type string ", s)
+            rethrow(err)
+        end
+        typ = julia_type(fixtypes(sp))
         if typ != UnsupportedType
             _typedict[s] = typ
         end
@@ -1015,7 +1022,15 @@ function full_typename(io::IO, ::JldFile, x)
         error("type parameters with objects of type ", typeof(x), " are currently unsupported")
     end
 end
-full_typename(io::IO, ::JldFile, x::Symbol) = print(io, ":", x) # print(io, ::Symbol) doesn't show the leading colon
+function full_typename(io::IO, ::JldFile, x::Symbol)
+    s = string(x)
+    if contains(s, " ")
+        # escape spaces
+        print_escaped(io, string("symbol(\"", string(x), "\")"), " ")
+    else
+        print(io, ":", x)
+    end
+end
 function full_typename(io::IO, file::JldFile, jltype::DataType)
     mod = jltype.name.module
     if mod != Main

@@ -40,6 +40,7 @@ ms = MyStruct(2, [3.2, -1.7])
 msempty = MyStruct(5, Float64[])
 sym = :TestSymbol
 syms = [:a, :b]
+symhard = symbol("troublesome \"symbol\"")
 d = Dict([(syms[1],"aardvark"), (syms[2], "banana")])
 ex = quote
     function incrementby1(x::Int)
@@ -418,6 +419,7 @@ for compatible in (false, true), compress in (false, true)
     @write fid msempty
     @write fid sym
     @write fid syms
+    @write fid symhard
     @write fid d
     @write fid ex
     if VERSION < v"0.5.0-dev"
@@ -537,6 +539,7 @@ for compatible in (false, true), compress in (false, true)
         @check fidr msempty
         @check fidr sym
         @check fidr syms
+        @check fidr symhard
         @check fidr d
         exr = read(fidr, "ex")   # line numbers are stripped, don't expect equality
         checkexpr(ex, exr)
