@@ -306,15 +306,17 @@ function isAssertAny(line::Expr)
     return anycheck
 end
 function checkfuns(f, g)
-    f_ast = Base.uncompressed_ast(f.code)
-    g_ast = Base.uncompressed_ast(g.code)
+    f_code = JLD.get_code(f)
+    g_code = JLD.get_code(g)
+    f_ast = Base.uncompressed_ast(f_code)
+    g_ast = Base.uncompressed_ast(g_code)
     @assert f_ast.args[1] == g_ast.args[1]
 
     f_body = f_ast.args[3]
     g_body = g_ast.args[3]
     checkfunexpr(f_body, g_body)
 
-    @assert f.code.module == g.code.module
+    @assert f_code.module == g_code.module
 end
 checkfunexpr(a, b) = @assert a == b
 function checkfunexpr(f_body::Expr, g_body::Expr)
@@ -422,10 +424,8 @@ for compatible in (false, true), compress in (false, true)
     @write fid symhard
     @write fid d
     @write fid ex
-    if VERSION < v"0.5.0-dev"
-        @write fid fun
-        @write fid function_referencing_module
-    end
+    @write fid fun
+    @write fid function_referencing_module
     @write fid T
     @write fid char
     @write fid unicode_char
@@ -543,14 +543,12 @@ for compatible in (false, true), compress in (false, true)
         @check fidr d
         exr = read(fidr, "ex")   # line numbers are stripped, don't expect equality
         checkexpr(ex, exr)
-        if VERSION < v"0.5.0-dev"
-            funr = read(fidr, "fun")
-            checkfuns(fun, funr)
-            @test funr(3,5) == 38
-            function_referencing_module_r = read(fidr, "function_referencing_module")
-            checkfuns(function_referencing_module, function_referencing_module_r)
-            @test function_referencing_module_r(3,7) == 34
-        end
+        funr = read(fidr, "fun")
+        checkfuns(fun, funr)
+        @test funr(3,5) == 38
+        function_referencing_module_r = read(fidr, "function_referencing_module")
+        checkfuns(function_referencing_module, function_referencing_module_r)
+        @test function_referencing_module_r(3,7) == 34
         @check fidr T
         @check fidr char
         @check fidr unicode_char

@@ -836,22 +836,26 @@ function modname2mod(modname::AbstractString)
 end
 
 
+function get_code(f::Function)
+    if isgeneric(f)
+        ms = methods(f)
+        @assert length(ms) == 1 "Generic functions with multiple methods are not supported"
+        first(ms).func
+    else
+        f.code
+    end
+end
+
 # Serializer for anonymous functions
 # convert functions to lowered ast expressions
 function func2expr(fun::Function)
-    if isgeneric(fun)
-        ms = methods(fun)
-        @assert length(m) == 1 "Generic functions with multiple methods are not supported"
-        ast = Base.uncompressed_ast(first(ms).func)
-    else
-        ast = Base.uncompressed_ast(fun.code)
-    end
+    ast = Base.uncompressed_ast(get_code(fun))
     Expr(:function, Expr(:tuple, ast.args[1]...), Expr(:block, ast.args[3].args...))
 end
 immutable AnonymousFunctionSerializer
     expr::Expr
     mod::AbstractString
-    AnonymousFunctionSerializer(fun::Function) = new(func2expr(fun), string(fun.code.module))
+    AnonymousFunctionSerializer(fun::Function) = new(func2expr(fun), string(get_code(fun).module))
 end
 readas(ast::AnonymousFunctionSerializer) = eval(modname2mod(ast.mod)).eval(ast.expr)
 writeas(fun::Function) = AnonymousFunctionSerializer(fun)
