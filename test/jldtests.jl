@@ -5,7 +5,7 @@ using Base.Test
 
 # Define variables of different types
 x = 3.7
-A = reshape(1:15, 3, 5)
+A = reshape(collect(1:15), 3, 5)
 Aarray = Vector{Float64}[[1.2,1.3],[2.2,2.3,2.4]]
 str = "Hello"
 stringsA = ASCIIString["It", "was", "a", "dark", "and", "stormy", "night"]
