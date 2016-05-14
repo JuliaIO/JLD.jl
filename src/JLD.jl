@@ -22,6 +22,16 @@ const name_type_attr = "julia type"
 
 @compat typealias BitsKindOrString Union{HDF5BitsKind, String}
 
+replacements = Any[]
+if isdefined(Core, :String) && isdefined(Core, :AbstractString)
+    push!(replacements, :(s = replace(s, r"ASCIIString|UTF8String|ByteString", "String")))
+end
+ex = Expr(:block, replacements...)
+@eval function julia_type(s::AbstractString)
+    $ex
+    _julia_type(s)
+end
+
 if VERSION >= v"0.4.0-dev+5379"
     # Just rename the uses when we drop 0.3 support
     const UnionType = Union
@@ -943,7 +953,7 @@ fixtypes(typ) = typ
     end
 end
 
-function julia_type(s::AbstractString)
+function _julia_type(s::AbstractString)
     typ = get(_typedict, s, UnconvertedType)
     if typ == UnconvertedType
         local sp
