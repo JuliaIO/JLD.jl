@@ -165,10 +165,12 @@ gen_h5convert{T<:String}(::JldFile, ::Type{T}) = nothing
 h5convert!(out::Ptr, ::JldFile, x::String, ::JldWriteSession) =
     unsafe_store!(convert(Ptr{Ptr{UInt8}}, out), pointer(x))
 
-@compat function jlconvert{S<:String}(T::Type{S}, ::JldFile, ptr::Ptr)
-    strptr = unsafe_load(convert(Ptr{Ptr{UInt8}}, ptr))
-    n = Int(ccall(:strlen, Csize_t, (Ptr{UInt8},), strptr))
-    T(pointer_to_array(strptr, n, true))
+if !(isdefined(Core, :String) && isdefined(Core, :AbstractString))
+    @compat function jlconvert(T::Union{Type{Compat.ASCIIString},Type{Compat.UTF8String}}, ::JldFile, ptr::Ptr)
+        strptr = unsafe_load(convert(Ptr{Ptr{UInt8}}, ptr))
+        n = Int(ccall(:strlen, Csize_t, (Ptr{UInt8},), strptr))
+        T(pointer_to_array(strptr, n, true))
+    end
 end
 
 @compat function jlconvert(T::Union{Type{String}}, ::JldFile, ptr::Ptr)
