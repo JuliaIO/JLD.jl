@@ -580,6 +580,9 @@ gen_h5convert(parent::JldFile, T) =
 
 # There is no point in specializing this
 function _gen_h5convert(parent::JldFile, T::ANY)
+    if haskey(H5CONVERT_DEFINED, T)
+        error("redefined")
+    end
     dtype = parent.jlh5type[T].dtype
     istuple = isa(T, TupleType)
 
@@ -590,6 +593,7 @@ function _gen_h5convert(parent::JldFile, T::ANY)
             @eval h5convert!(out::Ptr, ::JldFile, x::$T, ::JldWriteSession) =
                 unsafe_store!(convert(Ptr{$T}, out), x)
         end
+        H5CONVERT_DEFINED[T] = true
         return
     end
 
