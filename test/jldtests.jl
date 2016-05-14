@@ -41,7 +41,7 @@ ms = MyStruct(2, [3.2, -1.7])
 msempty = MyStruct(5, Float64[])
 sym = :TestSymbol
 syms = [:a, :b]
-symhard = symbol("troublesome \"symbol\"")
+symhard = Symbol("troublesome \"symbol\"")
 d = Dict([(syms[1],"aardvark"), (syms[2], "banana")])
 ex = quote
     function incrementby1(x::Int)
