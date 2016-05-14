@@ -226,9 +226,9 @@ end
 # Issue #243
 # Type that overloads != so that it is not boolean
 type NALikeType; end
-Base.(:(!=))(::NALikeType, ::NALikeType) = NALikeType()
-Base.(:(!=))(::NALikeType, ::@compat(Void)) = NALikeType()
-Base.(:(!=))(::@compat(Void), ::NALikeType) = NALikeType()
+@compat Base.:(!=)(::NALikeType, ::NALikeType) = NALikeType()
+@compat Base.:(!=)(::NALikeType, ::Void) = NALikeType()
+@compat Base.:(!=)(::Void, ::NALikeType) = NALikeType()
 natyperef = Any[NALikeType(), NALikeType()]
 
 iseq(x,y) = isequal(x,y)
