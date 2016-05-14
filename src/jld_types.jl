@@ -9,7 +9,7 @@ const JLD_REF_TYPE = JldDatatype(HDF5Datatype(HDF5.H5T_STD_REF_OBJ, false), 0)
 const BUILTIN_TYPES = Set([Symbol, Type, UTF16String, BigFloat, BigInt])
 const H5CONVERT_DEFINED = ObjectIdDict()
 const JLCONVERT_DEFINED = ObjectIdDict()
-const JL_TYPENAME_TRANSLATE = Dict{ByteString,ByteString}()
+const JL_TYPENAME_TRANSLATE = Dict{String,String}()
 
 if VERSION >= v"0.4.0-dev+4319"
     const EMPTY_TUPLE_TYPE = Tuple{}
@@ -27,7 +27,7 @@ end
 
 ## Helper functions
 
-translate(oldname::ByteString, newname::ByteString) = JL_TYPENAME_TRANSLATE[oldname] = newname
+translate(oldname::String, newname::String) = JL_TYPENAME_TRANSLATE[oldname] = newname
 
 # Holds information about the mapping between a Julia and HDF5 type
 immutable JldTypeInfo
@@ -148,30 +148,30 @@ gen_jlconvert(typeinfo::JldTypeInfo, T::VoidType) = nothing
 jlconvert(T::VoidType, ::JldFile, ptr::Ptr) = nothing
 jlconvert!(out::Ptr, T::VoidType, ::JldFile, ptr::Ptr) = (unsafe_store!(convert(Ptr{T}, out), nothing); nothing)
 
-## ByteStrings
+## Strings
 
-h5fieldtype{T<:ByteString}(parent::JldFile, ::Type{T}, ::Bool) =
+h5fieldtype{T<:String}(parent::JldFile, ::Type{T}, ::Bool) =
     h5type(parent, T, false)
 
 # Stored as variable-length strings
-function h5type{T<:ByteString}(::JldFile, ::Type{T}, ::Bool)
+function h5type{T<:String}(::JldFile, ::Type{T}, ::Bool)
     type_id = HDF5.h5t_copy(HDF5.hdf5_type_id(T))
     HDF5.h5t_set_size(type_id, HDF5.H5T_VARIABLE)
     HDF5.h5t_set_cset(type_id, HDF5.cset(T))
     JldDatatype(HDF5Datatype(type_id, false), 0)
 end
 
-gen_h5convert{T<:ByteString}(::JldFile, ::Type{T}) = nothing
-h5convert!(out::Ptr, ::JldFile, x::ByteString, ::JldWriteSession) =
+gen_h5convert{T<:String}(::JldFile, ::Type{T}) = nothing
+h5convert!(out::Ptr, ::JldFile, x::String, ::JldWriteSession) =
     unsafe_store!(convert(Ptr{Ptr{UInt8}}, out), pointer(x))
 
-@compat function jlconvert(T::Union{Type{ASCIIString}, Type{UTF8String}}, ::JldFile, ptr::Ptr)
+@compat function jlconvert{S<:String}(T::Type{S}, ::JldFile, ptr::Ptr)
     strptr = unsafe_load(convert(Ptr{Ptr{UInt8}}, ptr))
     n = Int(ccall(:strlen, Csize_t, (Ptr{UInt8},), strptr))
     T(pointer_to_array(strptr, n, true))
 end
 
-@compat function jlconvert(T::Union{Type{ByteString}}, ::JldFile, ptr::Ptr)
+@compat function jlconvert(T::Union{Type{String}}, ::JldFile, ptr::Ptr)
     strptr = unsafe_load(convert(Ptr{Ptr{UInt8}}, ptr))
     str = bytestring(strptr)
     Libc.free(strptr)
@@ -212,7 +212,7 @@ h5fieldtype(parent::JldFile, ::Type{Symbol}, commit::Bool) =
 function h5type(parent::JldFile, ::Type{Symbol}, commit::Bool)
     haskey(parent.jlh5type, Symbol) && return parent.jlh5type[Symbol]
     id = HDF5.h5t_create(HDF5.H5T_COMPOUND, 8)
-    HDF5.h5t_insert(id, "symbol_", 0, h5fieldtype(parent, UTF8String, commit))
+    HDF5.h5t_insert(id, "symbol_", 0, h5fieldtype(parent, Compat.UTF8String, commit))
     dtype = HDF5Datatype(id, parent.plain)
     commit ? commit_datatype(parent, dtype, Symbol) : JldDatatype(dtype, -1)
 end
@@ -224,7 +224,7 @@ function h5convert!(out::Ptr, file::JldFile, x::Symbol, wsession::JldWriteSessio
     h5convert!(out, file, str, wsession)
 end
 
-jlconvert(::Type{Symbol}, file::JldFile, ptr::Ptr) = symbol(jlconvert(UTF8String, file, ptr))
+jlconvert(::Type{Symbol}, file::JldFile, ptr::Ptr) = Symbol(jlconvert(Compat.UTF8String, file, ptr))
 
 
 ## BigInts and BigFloats
@@ -236,7 +236,7 @@ jlconvert(::Type{Symbol}, file::JldFile, ptr::Ptr) = symbol(jlconvert(UTF8String
 @compat function h5type(parent::JldFile, T::Union{Type{BigInt}, Type{BigFloat}}, commit::Bool)
     haskey(parent.jlh5type, T) && return parent.jlh5type[T]
     id = HDF5.h5t_create(HDF5.H5T_COMPOUND, 8)
-    HDF5.h5t_insert(id, "data_", 0, h5fieldtype(parent, ASCIIString, commit))
+    HDF5.h5t_insert(id, "data_", 0, h5fieldtype(parent, Compat.ASCIIString, commit))
     dtype = HDF5Datatype(id, parent.plain)
     commit ? commit_datatype(parent, dtype, T) : JldDatatype(dtype, -1)
 end
@@ -255,13 +255,13 @@ end
 
 if VERSION < v"0.4.0-dev+3864"
     jlconvert(::Type{BigInt}, file::JldFile, ptr::Ptr) =
-        Base.parseint_nocheck(BigInt, jlconvert(ASCIIString, file, ptr), 62)
+        Base.parseint_nocheck(BigInt, jlconvert(Compat.ASCIIString, file, ptr), 62)
 else
     jlconvert(::Type{BigInt}, file::JldFile, ptr::Ptr) =
-        parse(BigInt, jlconvert(ASCIIString, file, ptr), 62)
+        parse(BigInt, jlconvert(Compat.ASCIIString, file, ptr), 62)
 end
 jlconvert(::Type{BigFloat}, file::JldFile, ptr::Ptr) =
-    parse(BigFloat, jlconvert(ASCIIString, file, ptr))
+    parse(BigFloat, jlconvert(Compat.ASCIIString, file, ptr))
 
 ## Types
 
@@ -272,7 +272,7 @@ h5fieldtype{T<:Type}(parent::JldFile, ::Type{T}, commit::Bool) =
 function h5type{T<:Type}(parent::JldFile, ::Type{T}, commit::Bool)
     haskey(parent.jlh5type, Type) && return parent.jlh5type[Type]
     id = HDF5.h5t_create(HDF5.H5T_COMPOUND, 8)
-    HDF5.h5t_insert(id, "typename_", 0, h5fieldtype(parent, UTF8String, commit))
+    HDF5.h5t_insert(id, "typename_", 0, h5fieldtype(parent, Compat.UTF8String, commit))
     dtype = HDF5Datatype(id, parent.plain)
     out = commit ? commit_datatype(parent, dtype, Type) : JldDatatype(dtype, -1)
 end
@@ -285,7 +285,7 @@ function h5convert!(out::Ptr, file::JldFile, x::Type, wsession::JldWriteSession)
     h5convert!(out, file, str, wsession)
 end
 
-jlconvert{T<:Type}(::Type{T}, file::JldFile, ptr::Ptr) = julia_type(jlconvert(UTF8String, file, ptr))
+jlconvert{T<:Type}(::Type{T}, file::JldFile, ptr::Ptr) = julia_type(jlconvert(Compat.UTF8String, file, ptr))
 
 ## Pointers
 
@@ -638,9 +638,9 @@ function jldatatype(parent::JldFile, dtype::HDF5Datatype)
     if class_id == HDF5.H5T_STRING
         cset = HDF5.h5t_get_cset(dtype.id)
         if cset == HDF5.H5T_CSET_ASCII
-            return ASCIIString
+            return Compat.ASCIIString
         elseif cset == HDF5.H5T_CSET_UTF8
-            return UTF8String
+            return Compat.UTF8String
         else
             error("character set ", cset, " not recognized")
         end
