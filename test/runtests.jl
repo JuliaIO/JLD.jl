@@ -1,5 +1,5 @@
 using HDF5
-using Compat
+using Compat; import Compat.String
 
 runtest(filename) = (println(filename); include(filename))
 
