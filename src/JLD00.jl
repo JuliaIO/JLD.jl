@@ -3,7 +3,8 @@
 ###############################################
 
 module JLD00
-using HDF5, Compat
+using HDF5
+using Compat; import Compat.String
 # Add methods to...
 import HDF5: close, dump, exists, file, getindex, setindex!, g_create, g_open, o_delete, name, names, read, size, write,
              HDF5ReferenceObj, HDF5BitsKind, ismmappable, readmmap
@@ -48,7 +49,7 @@ type CompositeKind; end   # here this means "a type with fields"
 # objects _started_.
 type JldFile <: HDF5.DataFile
     plain::HDF5File
-    version::UTF8String
+    version::String
     toclose::Bool
     writeheader::Bool
     mmaparrays::Bool
@@ -119,7 +120,7 @@ function jldopen(filename::AbstractString, rd::Bool, wr::Bool, cr::Bool, tr::Boo
             end
             fj = JldFile(HDF5File(f, filename), version, true, true, mmaparrays)
             # initialize empty require list
-            write(fj, pathrequire, ByteString[])
+            write(fj, pathrequire, String[])
         else
             # Test whether this is a jld file
             sz = filesize(filename)
@@ -186,7 +187,7 @@ function jldobject(obj_id::HDF5.Hid, parent)
     error("Invalid object type for path ", path)
 end
 
-@compat getindex(parent::Union{JldFile, JldGroup}, path::ByteString) =
+@compat getindex(parent::Union{JldFile, JldGroup}, path::String) =
     jldobject(HDF5.h5o_open(parent.plain.id, path), parent)
 
 @compat function getindex(parent::Union{JldFile, JldGroup, JldDataset}, r::HDF5ReferenceObj)
@@ -207,10 +208,10 @@ end
 end
 @compat g_open(parent::Union{JldFile, JldGroup}, args...) = JldGroup(g_open(parent.plain, args...), file(parent))
 @compat name(p::Union{JldFile, JldGroup, JldDataset}) = name(p.plain)
-@compat exists(p::Union{JldFile, JldGroup, JldDataset}, path::ByteString) = exists(p.plain, path)
+@compat exists(p::Union{JldFile, JldGroup, JldDataset}, path::String) = exists(p.plain, path)
 @compat root(p::Union{JldFile, JldGroup, JldDataset}) = g_open(file(p), "/")
 @compat o_delete(parent::Union{JldFile, JldGroup}, args...) = o_delete(parent.plain, args...)
-function ensurepathsafe(path::ByteString)
+function ensurepathsafe(path::String)
     if any([startswith(path, s) for s in (pathrefs,pathtypes,pathrequire)])
         error("$name is internal to the JLD format, use o_delete if you really want to delete it")
     end
@@ -228,14 +229,14 @@ function delete!(g::JldGroup)
     for o in g typeof(o) == JldDataset && delete!(o) end
     o_delete(g.file,name(g))
 end
-@compat function delete!(parent::Union{JldFile, JldGroup}, path::ByteString)
+@compat function delete!(parent::Union{JldFile, JldGroup}, path::String)
     exists(parent, path) || error("$path does not exist in $parent")
     delete!(parent[path])
 end
-@compat delete!(parent::Union{JldFile, JldGroup}, args::Tuple{Vararg{ByteString}}) = for a in args delete!(parent,a) end
+@compat delete!(parent::Union{JldFile, JldGroup}, args::Tuple{Vararg{String}}) = for a in args delete!(parent,a) end
 ismmappable(obj::JldDataset) = ismmappable(obj.plain)
 readmmap(obj::JldDataset, args...) = readmmap(obj.plain, args...)
-@compat setindex!(parent::Union{JldFile, JldGroup}, val, path::ASCIIString) = write(parent, path, val)
+@compat setindex!(parent::Union{JldFile, JldGroup}, val, path::String) = write(parent, path, val)
 
 @compat start(parent::Union{JldFile, JldGroup}) = (names(parent), 1)
 @compat done(parent::Union{JldFile, JldGroup}, state) = state[2] > length(state[1])
@@ -247,7 +248,7 @@ readmmap(obj::JldDataset, args...) = readmmap(obj.plain, args...)
 
 ### Read ###
 
-@compat function read(parent::Union{JldFile, JldGroup}, name::ByteString)
+@compat function read(parent::Union{JldFile, JldGroup}, name::String)
     local val
     obj = parent[name]
     try
@@ -283,9 +284,9 @@ end
                     modnames = a_read(objtype.plain, "Module")
                     mod = Main
                     for mname in modnames
-                        mod = eval(mod, symbol(mname))
+                        mod = eval(mod, Symbol(mname))
                     end
-                    T = eval(mod, symbol(typename))
+                    T = eval(mod, Symbol(typename))
                 finally
                     close(objtype)
                 end
@@ -332,7 +333,7 @@ end
     end
     ret
 end
-@compat function readsafely(parent::Union{JldFile, JldGroup}, name::ByteString)
+@compat function readsafely(parent::Union{JldFile, JldGroup}, name::String)
     local ret
     obj = parent[name]
     try
@@ -345,7 +346,7 @@ end
 @compat readsafely(parent::Union{JldFile,JldGroup}, name::Symbol) = readsafely(parent, bytestring(string(symbol)))
 
 # Basic types
-@compat typealias BitsKindOrByteString Union{HDF5BitsKind, ByteString}
+@compat typealias BitsKindOrByteString Union{HDF5BitsKind, String}
 read{T<:BitsKindOrByteString}(obj::JldDataset, ::Type{T}) = read(obj.plain, T)
 function read{T<:HDF5BitsKind}(obj::JldDataset, ::Type{Array{T}})
     A = obj.file.mmaparrays && HDF5.iscontiguous(obj.plain) ? readmmap(obj.plain, Array{T}) : read(obj.plain, Array{T})
@@ -355,7 +356,7 @@ function read{T<:HDF5BitsKind}(obj::JldDataset, ::Type{Array{T}})
     end
     A
 end
-read{T<:ByteString}(obj::JldDataset, ::Type{Array{T}}) = read(obj.plain, Array{T})
+read{T<:String}(obj::JldDataset, ::Type{Array{T}}) = read(obj.plain, Array{T})
 read{T<:BitsKindOrByteString,N}(obj::JldDataset, ::Type{Array{T,N}}) = read(obj, Array{T})
 
 # Arrays-of-arrays of basic types
@@ -399,8 +400,8 @@ function read{T<:Complex,N}(obj::JldDataset, ::Type{Array{T,N}})
 end
 
 # Symbol
-read(obj::JldDataset, ::Type{Symbol}) = symbol(read(obj.plain, ByteString))
-read{N}(obj::JldDataset, ::Type{Array{Symbol,N}}) = map(symbol, read(obj.plain, Array{ByteString}))
+read(obj::JldDataset, ::Type{Symbol}) = Symbol(read(obj.plain, String))
+read{N}(obj::JldDataset, ::Type{Array{Symbol,N}}) = map(Symbol, read(obj.plain, Array{String}))
 
 # Char
 read(obj::JldDataset, ::Type{Char}) = @compat Char(read(obj.plain, UInt32))
@@ -529,8 +530,8 @@ end
 ### Writing ###
 
 # Write "basic" types
-@compat function write{T<:Union{HDF5BitsKind, ByteString}}(parent::Union{JldFile, JldGroup}, name::ByteString,
-                                                   data::Union{T, Array{T}}, astype::ByteString)
+@compat function write{T<:Union{HDF5BitsKind, String}}(parent::Union{JldFile, JldGroup}, name::String,
+                                                   data::Union{T, Array{T}}, astype::String)
     # Create the dataset
     dset, dtype = d_create(parent.plain, name, data)
     try
@@ -544,18 +545,18 @@ end
         close(dtype)
     end
 end
-@compat write{T<:Union{HDF5BitsKind, ByteString}}(parent::Union{JldFile, JldGroup}, name::ByteString, data::Union{T, Array{T}}) =
+@compat write{T<:Union{HDF5BitsKind, String}}(parent::Union{JldFile, JldGroup}, name::String, data::Union{T, Array{T}}) =
     write(parent, name, data, full_typename(typeof(data)))
 
 # Arrays-of-arrays of basic types
-@compat write{T<:Union{HDF5BitsKind, ByteString}}(parent::Union{JldFile, JldGroup}, name::ByteString,
-                                            data::Array{Array{T,1}}, astype::ByteString) =
+@compat write{T<:Union{HDF5BitsKind, String}}(parent::Union{JldFile, JldGroup}, name::String,
+                                            data::Array{Array{T,1}}, astype::String) =
     write(parent, name, HDF5.HDF5Vlen(data), astype)
-@compat write{T<:Union{HDF5BitsKind, ByteString}}(parent::Union{JldFile, JldGroup}, name::ByteString,
+@compat write{T<:Union{HDF5BitsKind, String}}(parent::Union{JldFile, JldGroup}, name::String,
                                             data::Array{Array{T,1}}) =
     write(parent, name, data, full_typename(typeof(data)))
-@compat function write{T}(parent::Union{JldFile, JldGroup}, name::ByteString,
-                  data::HDF5.HDF5Vlen{T}, astype::ByteString)
+@compat function write{T}(parent::Union{JldFile, JldGroup}, name::String,
+                  data::HDF5.HDF5Vlen{T}, astype::String)
     # Create the dataset
     dset, dtype = d_create(parent.plain, name, data)
     try
@@ -572,7 +573,7 @@ end
 
 
 # Write nothing
-@compat function write(parent::Union{JldFile, JldGroup}, name::ByteString, n::Void, astype::ASCIIString)
+@compat function write(parent::Union{JldFile, JldGroup}, name::String, n::Void, astype::String)
     local dspace, dset
     try
         dspace = dataspace(nothing)
@@ -584,31 +585,31 @@ end
         close(dset)
     end
 end
-@compat write(parent::Union{JldFile, JldGroup}, name::ByteString, n::Void) = write(parent, name, n, "Nothing")
+@compat write(parent::Union{JldFile, JldGroup}, name::String, n::Void) = write(parent, name, n, "Nothing")
 
 # Types
 # the first is needed to avoid an ambiguity warning
 if isdefined(Core, :Top)
-    @compat write{T<:Top}(parent::Union{JldFile, JldGroup}, name::ByteString, t::Tuple{Vararg{Type{T}}}) = write(parent, name, Any[t...], "Tuple")
+    @compat write{T<:Top}(parent::Union{JldFile, JldGroup}, name::String, t::Tuple{Vararg{Type{T}}}) = write(parent, name, Any[t...], "Tuple")
 else
-    @compat write{T}(parent::Union{JldFile, JldGroup}, name::ByteString, t::Tuple{Vararg{Type{T}}}) = write(parent, name, Any[t...], "Tuple")
+    @compat write{T}(parent::Union{JldFile, JldGroup}, name::String, t::Tuple{Vararg{Type{T}}}) = write(parent, name, Any[t...], "Tuple")
 end
-@compat write{T}(parent::Union{JldFile, JldGroup}, name::ByteString, t::Type{T}) = write(parent, name, nothing, string("Type{", full_typename(t), "}"))
+@compat write{T}(parent::Union{JldFile, JldGroup}, name::String, t::Type{T}) = write(parent, name, nothing, string("Type{", full_typename(t), "}"))
 
 # Bools
-@compat write(parent::Union{JldFile, JldGroup}, name::ByteString, tf::Bool) = write(parent, name, uint8(tf), "Bool")
-@compat function write(parent::Union{JldFile, JldGroup}, name::ByteString, tf::Array{Bool})
+@compat write(parent::Union{JldFile, JldGroup}, name::String, tf::Bool) = write(parent, name, uint8(tf), "Bool")
+@compat function write(parent::Union{JldFile, JldGroup}, name::String, tf::Array{Bool})
     write(parent, name, uint8(tf), full_typename(typeof(tf)))
     a_write(parent[name].plain, "julia_format", "EachUint8")
 end
 
 # Complex
 realtype{T}(::Type{Complex{T}}) = T
-@compat function write(parent::Union{JldFile, JldGroup}, name::ByteString, c::Complex)
+@compat function write(parent::Union{JldFile, JldGroup}, name::String, c::Complex)
     reim = [real(c), imag(c)]
     write(parent, name, reim, full_typename(typeof(c)))
 end
-@compat function write{T<:Complex}(parent::Union{JldFile, JldGroup}, name::ByteString, C::Array{T})
+@compat function write{T<:Complex}(parent::Union{JldFile, JldGroup}, name::String, C::Array{T})
     reim = reinterpret(realtype(T), C, ntuple(i->i==1?2:size(C,i-1), ndims(C)+1))
     write(parent, name, reim, full_typename(typeof(C)))
 end
@@ -616,20 +617,20 @@ end
 # Int128/UInt128
 
 # Symbols
-@compat write(parent::Union{JldFile, JldGroup}, name::ByteString, sym::Symbol) = write(parent, name, string(sym), "Symbol")
-@compat write(parent::Union{JldFile, JldGroup}, name::ByteString, syms::Array{Symbol}) = write(parent, name, map(string, syms), full_typename(typeof(syms)))
+@compat write(parent::Union{JldFile, JldGroup}, name::String, sym::Symbol) = write(parent, name, string(sym), "Symbol")
+@compat write(parent::Union{JldFile, JldGroup}, name::String, syms::Array{Symbol}) = write(parent, name, map(string, syms), full_typename(typeof(syms)))
 
 # Char
-@compat write(parent::Union{JldFile, JldGroup}, name::ByteString, char::Char) = write(parent, name, uint32(char), "Char")
+@compat write(parent::Union{JldFile, JldGroup}, name::String, char::Char) = write(parent, name, uint32(char), "Char")
 
 #UTF16String
 if VERSION >= v"0.3-"
-    @compat write(parent::Union{JldFile, JldGroup}, name::ByteString, str::UTF16String) = write(parent, name, str.data, "UTF16String")
-    @compat write{N}(parent::Union{JldFile, JldGroup}, name::ByteString, strs::Array{UTF16String,N}) = write(parent, name, map(x->x.data, strs), "Array{UTF16String,$N}")
+    @compat write(parent::Union{JldFile, JldGroup}, name::String, str::UTF16String) = write(parent, name, str.data, "UTF16String")
+    @compat write{N}(parent::Union{JldFile, JldGroup}, name::String, strs::Array{UTF16String,N}) = write(parent, name, map(x->x.data, strs), "Array{UTF16String,$N}")
 end
 
 # General array types (as arrays of references)
-@compat function write{T}(parent::Union{JldFile, JldGroup}, path::ByteString, data::Array{T}, astype::AbstractString)
+@compat function write{T}(parent::Union{JldFile, JldGroup}, path::String, data::Array{T}, astype::AbstractString)
     local gref  # a group, inside /_refs, for all the elements in data
     local refs
     # Determine whether parent already exists in /_refs, so we can avoid group/dataset conflict
@@ -682,13 +683,13 @@ end
         close(cset)
     end
 end
-@compat write{T}(parent::Union{JldFile, JldGroup}, path::ByteString, data::Array{T}) = write(parent, path, data, full_typename(typeof(data)))
+@compat write{T}(parent::Union{JldFile, JldGroup}, path::String, data::Array{T}) = write(parent, path, data, full_typename(typeof(data)))
 
 # Tuple
-@compat write(parent::Union{JldFile, JldGroup}, name::ByteString, t::Tuple) = write(parent, name, Any[t...], "Tuple")
+@compat write(parent::Union{JldFile, JldGroup}, name::String, t::Tuple) = write(parent, name, Any[t...], "Tuple")
 
 # Associative (Dict)
-@compat function write(parent::Union{JldFile, JldGroup}, name::ByteString, d::Associative)
+@compat function write(parent::Union{JldFile, JldGroup}, name::String, d::Associative)
     tn = full_typename(typeof(d))
     if tn == "DataFrame"
         return write_composite(parent, name, d)
@@ -707,7 +708,7 @@ end
 end
 
 # Expressions
-@compat function write(parent::Union{JldFile, JldGroup}, name::ByteString, ex::Expr)
+@compat function write(parent::Union{JldFile, JldGroup}, name::String, ex::Expr)
     args = ex.args
     # Discard "line" expressions
     keep = trues(length(args))
@@ -722,9 +723,9 @@ end
 end
 
 # CompositeKind
-@compat write(parent::Union{JldFile, JldGroup}, name::ByteString, s; rootmodule="") = write_composite(parent, name, s; rootmodule=rootmodule)
+@compat write(parent::Union{JldFile, JldGroup}, name::String, s; rootmodule="") = write_composite(parent, name, s; rootmodule=rootmodule)
 
-@compat function write_composite(parent::Union{JldFile, JldGroup}, name::ByteString, s; rootmodule="")
+@compat function write_composite(parent::Union{JldFile, JldGroup}, name::String, s; rootmodule="")
     T = typeof(s)
     if isempty(fieldnames(T))
         if T.size > 0
@@ -747,7 +748,7 @@ end
         if !exists(gtypes, Tname)
             # Write names to a dataset, so that other languages reading this file can
             # at least create a sensible dict
-            nametype = Array(ByteString, 2, length(n))
+            nametype = Array(String, 2, length(n))
             t = T.types
             for i = 1:length(n)
                 nametype[1, i] = string(n[i])
@@ -783,7 +784,7 @@ end
     close(obj)
 end
 
-@compat function write_bitstype(parent::Union{JldFile, JldGroup}, name::ByteString, s)
+@compat function write_bitstype(parent::Union{JldFile, JldGroup}, name::String, s)
     T = typeof(s)
     if T.size == 1
         ub = reinterpret(UInt8, s)
@@ -938,7 +939,7 @@ is_valid_type_ex(x::Int) = true
 is_valid_type_ex(e::Expr) = ((e.head == :curly || e.head == :tuple || e.head == :.) && all(is_valid_type_ex, e.args)) ||
                             (e.head == :call && (e.args[1] == :Union || e.args[1] == :TypeVar))
 
-const _typedict = Dict{UTF8String,Type}()
+const _typedict = Dict{String,Type}()
 function _julia_type(s::AbstractString)
     typ = get(_typedict, s, UnconvertedType)
     if typ == UnconvertedType
@@ -1067,7 +1068,7 @@ macro load(filename, vars...)
         for n in nms
             obj = f[n]
             if isa(obj, JldDataset)
-                sym = esc(symbol(n))
+                sym = esc(Symbol(n))
                 push!(readexprs, :($sym = read($f, $n)))
                 push!(vars, sym)
             end
@@ -1115,7 +1116,7 @@ end
 # load with just a filename returns a dictionary containing all the variables
 function load(filename::AbstractString)
     jldopen(filename, "r") do file
-        (ByteString => Any)[var => read(file, var) for var in names(file)]
+        (String => Any)[var => read(file, var) for var in names(file)]
     end
 end
 # When called with explicitly requested variable names, return each one
