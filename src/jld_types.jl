@@ -224,7 +224,7 @@ function h5convert!(out::Ptr, file::JldFile, x::Symbol, wsession::JldWriteSessio
     h5convert!(out, file, str, wsession)
 end
 
-jlconvert(::Type{Symbol}, file::JldFile, ptr::Ptr) = symbol(jlconvert(String, file, ptr))
+jlconvert(::Type{Symbol}, file::JldFile, ptr::Ptr) = Symbol(jlconvert(String, file, ptr))
 
 
 ## BigInts and BigFloats
@@ -355,7 +355,7 @@ function gen_jlconvert(typeinfo::JldTypeInfo, T::TupleType)
     types = tupletypes(T)
     for i = 1:length(typeinfo.dtypes)
         h5offset = typeinfo.offsets[i]
-        field = symbol(string("field", i))
+        field = Symbol(string("field", i))
 
         if HDF5.h5t_get_class(typeinfo.dtypes[i]) == HDF5.H5T_REFERENCE
             push!(args, :($field = read_ref(file, unsafe_load(convert(Ptr{HDF5ReferenceObj}, ptr)+$h5offset))))
@@ -722,7 +722,7 @@ function reconstruct_type(parent::JldFile, dtype::HDF5Datatype, savedname::Abstr
         for i = 1:nfields
             membername = HDF5.h5t_get_member_name(dtype.id, i-1)
             idx = rsearchindex(membername, "_")
-            fieldname = fieldnames[i] = symbol(membername[1:idx-1])
+            fieldname = fieldnames[i] = Symbol(membername[1:idx-1])
 
             if idx != sizeof(membername)
                 # There is something past the underscore in the HDF5 field

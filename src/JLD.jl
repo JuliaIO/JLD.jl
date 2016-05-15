@@ -1027,7 +1027,7 @@ function full_typename(io::IO, ::JldFile, x::Symbol)
     s = string(x)
     if contains(s, " ")
         # escape spaces
-        print_escaped(io, string("symbol(\"", string(x), "\")"), " ")
+        print_escaped(io, string("Symbol(\"", string(x), "\")"), " ")
     else
         print(io, ":", x)
     end
@@ -1145,7 +1145,7 @@ macro load(filename, vars...)
         for n in nms
             obj = f[n]
             if isa(obj, JldDataset)
-                sym = esc(symbol(n))
+                sym = esc(Symbol(n))
                 push!(readexprs, :($sym = read($f, $n)))
                 push!(vars, sym)
             end
@@ -1240,7 +1240,7 @@ function path2modsym(filename::AbstractString)
     if endswith(bname, ".jl")
         bname = bname[1:end-3]
     end
-    symbol(bname)
+    Symbol(bname)
 end
 
 export

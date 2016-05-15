@@ -284,9 +284,9 @@ end
                     modnames = a_read(objtype.plain, "Module")
                     mod = Main
                     for mname in modnames
-                        mod = eval(mod, symbol(mname))
+                        mod = eval(mod, Symbol(mname))
                     end
-                    T = eval(mod, symbol(typename))
+                    T = eval(mod, Symbol(typename))
                 finally
                     close(objtype)
                 end
@@ -400,8 +400,8 @@ function read{T<:Complex,N}(obj::JldDataset, ::Type{Array{T,N}})
 end
 
 # Symbol
-read(obj::JldDataset, ::Type{Symbol}) = symbol(read(obj.plain, String))
-read{N}(obj::JldDataset, ::Type{Array{Symbol,N}}) = map(symbol, read(obj.plain, Array{String}))
+read(obj::JldDataset, ::Type{Symbol}) = Symbol(read(obj.plain, String))
+read{N}(obj::JldDataset, ::Type{Array{Symbol,N}}) = map(Symbol, read(obj.plain, Array{String}))
 
 # Char
 read(obj::JldDataset, ::Type{Char}) = @compat Char(read(obj.plain, UInt32))
@@ -1068,7 +1068,7 @@ macro load(filename, vars...)
         for n in nms
             obj = f[n]
             if isa(obj, JldDataset)
-                sym = esc(symbol(n))
+                sym = esc(Symbol(n))
                 push!(readexprs, :($sym = read($f, $n)))
                 push!(vars, sym)
             end
