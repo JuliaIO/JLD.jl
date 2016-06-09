@@ -68,8 +68,8 @@ typevar = Array{Int}[[1]]
 typevar_lb = Vector{TypeVar(:U, Integer)}[[1]]
 typevar_ub = Vector{TypeVar(:U, Int, Any)}[[1]]
 typevar_lb_ub = Vector{TypeVar(:U, Int, Real)}[[1]]
-undef = cell(1)
-undefs = cell(2, 2)
+undef = Array{Any}(1)
+undefs = Array{Any}(2, 2)
 ms_undef = MyStruct(0)
 # Unexported type:
 cpus = Base.Sys.cpu_info()
@@ -187,7 +187,7 @@ padding_test = PaddingTest[PaddingTest(i, i) for i = 1:8]
 empty_arr_1 = Int[]
 empty_arr_2 = Array(Int, 56, 0)
 empty_arr_3 = Any[]
-empty_arr_4 = cell(0, 97)
+empty_arr_4 = Array{Any}(0, 97)
 # Moderately big dataset (which will be mmapped)
 bigdata = [1:10000;]
 # BigFloats and BigInts
@@ -504,10 +504,10 @@ for compatible in (false, true), compress in (false, true)
     close(fid)
 
     # mmapping currently fails on Windows; re-enable once it can work
-    for mmap = (@windows ? false : (false, true))
+    for mmap = (@static is_windows() ? false : (false, true))
         fidr = jldopen(fn, "r", mmaparrays=mmap)
         @test creator(fidr, "VERSION") == VERSION
-        @test creator(fidr, "WORD_SIZE") == WORD_SIZE
+        @test creator(fidr, "WORD_SIZE") == Sys.WORD_SIZE
         @test creator(fidr, "ENDIAN_BOM") == ENDIAN_BOM
         @check fidr x
         @check fidr A
