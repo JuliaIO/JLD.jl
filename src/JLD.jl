@@ -207,7 +207,7 @@ function jldopen(filename::AbstractString, rd::Bool, wr::Bool, cr::Bool, tr::Boo
                 close(rawfid)
             end
             if startswith(magic, magic_base.data)
-                version = convert(VersionNumber, String(pointer(magic) + length(magic_base)))
+                version = convert(VersionNumber, unsafe_string(pointer(magic) + length(magic_base)))
                 if version < v"0.1.0"
                     if !isdefined(JLD, :JLD00)
                         eval(:(include(joinpath($(dirname(@__FILE__)), "JLD00.jl"))))
@@ -360,7 +360,7 @@ readmmap(obj::JldDataset, args...) = readmmap(obj.plain, args...)
     end
     readas(val)
 end
-@compat read(parent::Union{JldFile,JldGroup}, name::Symbol) = read(parent,String(string(name)))
+@compat read(parent::Union{JldFile,JldGroup}, name::Symbol) = read(parent, String(string(name)))
 
 function read(obj::JldGroup)
     nms = names(obj)
@@ -1209,7 +1209,7 @@ FileIO.save(f::File{format"JLD"}, value...; kwargs...) = error("Must supply a na
 # load with just a filename returns a dictionary containing all the variables
 function FileIO.load(f::File{format"JLD"})
     jldopen(FileIO.filename(f), "r") do file
-        Dict{String,Any}(var => read(file, var) for var in names(file))
+        Dict{String,Any}([var => read(file, var) for var in names(file)])
     end
 end
 # When called with explicitly requested variable names, return each one
