@@ -1,4 +1,4 @@
 julia 0.4
 HDF5
-Compat 0.7.3
+Compat 0.8.0
 FileIO
