@@ -1,7 +1,7 @@
 # Saving and loading variables in Julia Data format (JLD)
 
 [![Build Status](https://travis-ci.org/JuliaIO/JLD.jl.svg?branch=master)](https://travis-ci.org/JuliaIO/JLD.jl)
-[![Build status](https://ci.appveyor.com/api/projects/status/p2wkp87jfr0q7g4q?svg=true)](https://ci.appveyor.com/project/timholy/jld-jl)
+[![Build status](https://ci.appveyor.com/api/projects/status/o2rc8yj3qnrhn738/branch/master?svg=true)](https://ci.appveyor.com/project/timholy/jld-jl-28dqq/branch/master)
 [![codecov.io](http://codecov.io/github/JuliaIO/JLD.jl/coverage.svg?branch=master)](http://codecov.io/github/JuliaIO/JLD.jl?branch=master)
 
 [![JLD](http://pkg.julialang.org/badges/JLD_0.3.svg)](http://pkg.julialang.org/?pkg=JLD&ver=0.3)
