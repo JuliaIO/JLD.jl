@@ -191,7 +191,7 @@ function jldopen(filename::AbstractString, rd::Bool, wr::Bool, cr::Bool, tr::Boo
             if !isempty(VERSION.build)
                 write(fj, joinpath(pathcreator, "JULIA_BUILD"), [VERSION.build...])
             end
-            write(fj, joinpath(pathcreator, "WORD_SIZE"), WORD_SIZE)
+            write(fj, joinpath(pathcreator, "WORD_SIZE"), Sys.WORD_SIZE)
             write(fj, joinpath(pathcreator, "ENDIAN_BOM"), ENDIAN_BOM)
         else
             # Test whether this is a jld file
@@ -207,7 +207,7 @@ function jldopen(filename::AbstractString, rd::Bool, wr::Bool, cr::Bool, tr::Boo
                 close(rawfid)
             end
             if startswith(magic, magic_base.data)
-                version = convert(VersionNumber, bytestring(pointer(magic) + length(magic_base)))
+                version = convert(VersionNumber, unsafe_string(pointer(magic) + length(magic_base)))
                 if version < v"0.1.0"
                     if !isdefined(JLD, :JLD00)
                         eval(:(include(joinpath($(dirname(@__FILE__)), "JLD00.jl"))))
@@ -360,7 +360,7 @@ readmmap(obj::JldDataset, args...) = readmmap(obj.plain, args...)
     end
     readas(val)
 end
-@compat read(parent::Union{JldFile,JldGroup}, name::Symbol) = read(parent,bytestring(string(name)))
+@compat read(parent::Union{JldFile,JldGroup}, name::Symbol) = read(parent, String(string(name)))
 
 function read(obj::JldGroup)
     nms = names(obj)
@@ -548,7 +548,7 @@ end
                                                     wsession::JldWriteSession; kargs...)
     chunk = T <: String ? Int[] : HDF5.heuristic_chunk(data)
     dprop, dprop_close = dset_create_properties(parent, sizeof(data), data, chunk; kargs...)
-    dset, dtype = d_create(parent.plain, bytestring(name), data, HDF5._link_properties(name), dprop)
+    dset, dtype = d_create(parent.plain, String(name), data, HDF5._link_properties(name), dprop)
     try
         # Write the attribute
         isa(data, Array) && isempty(data) && a_write(dset, "dims", [size(data)...])
@@ -1187,7 +1187,7 @@ function FileIO.save(f::File{format"JLD"}, dict::Associative; compatible::Bool=f
             if !isa(k, AbstractString)
                 error("Keys must be strings (the names of variables), got $k")
             end
-            write(file, bytestring(k), v, wsession)
+            write(file, String(k), v, wsession)
         end
     end
 end
@@ -1198,9 +1198,9 @@ function FileIO.save(f::File{format"JLD"}, name::AbstractString, value, pairs...
     end
     jldopen(FileIO.filename(f), "w"; compatible=compatible, compress=compress) do file
         wsession = JldWriteSession()
-        write(file, bytestring(name), value, wsession)
+        write(file, String(name), value, wsession)
         for i=1:2:length(pairs)
-            write(file, bytestring(pairs[i]), pairs[i+1], wsession)
+            write(file, String(pairs[i]), pairs[i+1], wsession)
         end
     end
 end
@@ -1209,7 +1209,7 @@ FileIO.save(f::File{format"JLD"}, value...; kwargs...) = error("Must supply a na
 # load with just a filename returns a dictionary containing all the variables
 function FileIO.load(f::File{format"JLD"})
     jldopen(FileIO.filename(f), "r") do file
-        (String => Any)[var => read(file, var) for var in names(file)]
+        Dict{String,Any}([var => read(file, var) for var in names(file)])
     end
 end
 # When called with explicitly requested variable names, return each one

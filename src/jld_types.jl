@@ -175,7 +175,7 @@ end
 
 @compat function jlconvert(T::Union{Type{String}}, ::JldFile, ptr::Ptr)
     strptr = unsafe_load(convert(Ptr{Ptr{UInt8}}, ptr))
-    str = bytestring(strptr)
+    str = unsafe_string(strptr)
     Libc.free(strptr)
     str
 end
