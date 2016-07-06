@@ -219,7 +219,7 @@ tuple_of_tuples = (1, 2, (3, 4, [5, 6]), [7, 8])
 
 # SimpleVector
 if VERSION >= v"0.4.0-dev+4319"
-    simplevec = Base.svec(1, 2, Int64, "foo")
+    simplevec = Core.svec(1, 2, Int64, "foo")
     iseq(x::SimpleVector, y::SimpleVector) = collect(x) == collect(y)
 end
 

@@ -22,6 +22,12 @@ const name_type_attr = "julia type"
 
 @compat typealias BitsKindOrString Union{HDF5BitsKind, String}
 
+if VERSION >= v"0.5.0-dev+5149"
+    import Base.datatype_pointerfree
+else
+    datatype_pointerfree(T::DataType) = T.pointerfree
+end
+
 replacements = Any[]
 if isdefined(Core, :String) && isdefined(Core, :AbstractString)
     push!(replacements, :(s = replace(s, r"ASCIIString|UTF8String|ByteString", "String")))
@@ -449,7 +455,7 @@ function read_vals(obj::JldDataset, dtype::HDF5Datatype, T::Type, dspace_id::HDF
 
     f = file(obj)
     h5offset = pointer(buf)
-    if T.pointerfree && !T.mutable
+    if datatype_pointerfree(T) && !T.mutable
         jloffset = pointer(out)
         jlsz = T.size
 
@@ -837,7 +843,7 @@ end
 
 # Special case for SimpleVector
 if VERSION >= v"0.4.0-dev+4319"
-    readas(x::SimpleVectorWrapper) = Base.svec(x.elements...)
+    readas(x::SimpleVectorWrapper) = Core.svec(x.elements...)
     writeas(x::SimpleVector) = SimpleVectorWrapper([x...])
 end
 
