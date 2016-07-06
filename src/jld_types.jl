@@ -380,7 +380,7 @@ if INLINE_POINTER_IMMUTABLE
         isleaftype(T) && (!T.mutable || T.size == 0) ? h5type(parent, T, commit) : JLD_REF_TYPE
 else
     h5fieldtype(parent::JldFile, T::ANY, commit::Bool) =
-        isleaftype(T) && (!T.mutable || T.size == 0) && T.pointerfree ? h5type(parent, T, commit) : JLD_REF_TYPE
+        isleaftype(T) && (!T.mutable || T.size == 0) && datatype_pointerfree(T) ? h5type(parent, T, commit) : JLD_REF_TYPE
 end
 
 function h5type(parent::JldFile, T::ANY, commit::Bool)
@@ -451,12 +451,12 @@ function _gen_jlconvert_immutable(typeinfo::JldTypeInfo, T::ANY)
     else
         jloffsets = fieldoffsets(T)
     end
-    if T.pointerfree
+    if datatype_pointerfree(T)
         for i = 1:length(typeinfo.dtypes)
             h5offset = typeinfo.offsets[i]
             jloffset = jloffsets[i]
 
-            if isa(T.types[i], TupleType) && VERSION >= v"0.4.0-dev+4319" && T.types[i].pointerfree
+            if isa(T.types[i], TupleType) && VERSION >= v"0.4.0-dev+4319" && datatype_pointerfree(T.types[i])
                 # We continue to store tuples as references for the sake of
                 # backwards compatibility, but on 0.4 they are now stored
                 # inline
@@ -488,7 +488,7 @@ function _gen_jlconvert_immutable(typeinfo::JldTypeInfo, T::ANY)
             h5offset = typeinfo.offsets[i]
             jloffset = jloffsets[i]
             obj = gensym("obj")
-            if isa(T.types[i], TupleType) && VERSION >= v"0.4.0-dev+4319" && T.types[i].pointerfree
+            if isa(T.types[i], TupleType) && VERSION >= v"0.4.0-dev+4319" && datatype_pointerfree(T.types[i])
                 # We continue to store tuples as references for the sake of
                 # backwards compatibility, but on 0.4 they are now stored
                 # inline
@@ -569,7 +569,7 @@ opaquesize(t::DataType) = max(1, t.size)
 # reference in Julia. This will only be called such that it returns
 # true for some unions of special types defined above, unless either
 # INLINE_TUPLE or INLINE_POINTER_IMMUTABLE is true.
-uses_reference(T::DataType) = !T.pointerfree
+uses_reference(T::DataType) = !datatype_pointerfree(T)
 uses_reference(::TupleType) = true
 uses_reference(::UnionType) = true
 
