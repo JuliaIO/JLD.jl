@@ -1,7 +1,7 @@
 using HDF5
 using JLD
 using Compat
-import Compat.String
+using Compat: String, view
 using Base.Test
 
 # Define variables of different types
@@ -87,7 +87,7 @@ bt = reinterpret(MyBT, @compat Int64(55))
 sa_asc = [:a, :b]
 sa_utf8 = [:α, :β]
 # SubArray (to test tuple type params)
-subarray = sub([1:5;], 1:5)
+subarray = view([1:5;], 1:5)
 # Array of empty tuples (to test tuple type params)
 arr_empty_tuple = (@compat Tuple{})[]
 immutable EmptyImmutable end
