@@ -169,7 +169,7 @@ if !(isdefined(Core, :String) && isdefined(Core, :AbstractString))
     @compat function jlconvert(T::Union{Type{Compat.ASCIIString},Type{Compat.UTF8String}}, ::JldFile, ptr::Ptr)
         strptr = unsafe_load(convert(Ptr{Ptr{UInt8}}, ptr))
         n = Int(ccall(:strlen, Csize_t, (Ptr{UInt8},), strptr))
-        T(pointer_to_array(strptr, n, true))
+        T(unsafe_wrap(Array, strptr, n, true))
     end
 end
 
@@ -202,7 +202,7 @@ h5convert!(out::Ptr, ::JldFile, x::UTF16String, ::JldWriteSession) =
 
 function jlconvert(::Type{UTF16String}, ::JldFile, ptr::Ptr)
     hvl = unsafe_load(convert(Ptr{HDF5.Hvl_t}, ptr))
-    UTF16String(pointer_to_array(convert(Ptr{UInt16}, hvl.p), hvl.len, true))
+    UTF16String(unsafe_wrap(Array, convert(Ptr{UInt16}, hvl.p), hvl.len, true))
 end
 
 ## Symbols
