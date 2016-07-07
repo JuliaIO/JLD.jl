@@ -1213,22 +1213,10 @@ end
 FileIO.save(f::File{format"JLD"}, value...; kwargs...) = error("Must supply a name for each variable")
 
 # load with just a filename returns a dictionary containing all the variables
-if VERSION >= v"0.5.0-dev+4298"
-    # This cannot be parsed on julia-0.4, so we have to protect it
-    eval(parse("""
-        function FileIO.load(f::File{format"JLD"})
-            jldopen(FileIO.filename(f), "r") do file
-                Dict{String,Any}(var => read(file, var) for var in names(file))
-            end
-        end"""))
-else
-    # This generates a parser warning on julia-0.5 unless we protect it
-    eval(parse("""
-        function FileIO.load(f::File{format"JLD"})
-            jldopen(FileIO.filename(f), "r") do file
-                Dict{String,Any}([var => read(file, var) for var in names(file)])
-            end
-        end"""))
+function FileIO.load(f::File{format"JLD"})
+    jldopen(FileIO.filename(f), "r") do file
+        Dict{String,Any}([(var, read(file, var)) for var in names(file)])
+    end
 end
 # When called with explicitly requested variable names, return each one
 function FileIO.load(f::File{format"JLD"}, varname::AbstractString)
