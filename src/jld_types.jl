@@ -1,3 +1,5 @@
+using LegacyStrings
+
 # Controls whether tuples and non-pointerfree immutables, which Julia
 # stores as references, are stored inline in compound types when
 # possible. Currently this is problematic because Julia fields of these
