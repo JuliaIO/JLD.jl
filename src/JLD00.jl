@@ -414,7 +414,7 @@ read{N}(obj::JldDataset, ::Type{Array{Symbol,N}}) = map(Symbol, read(obj.plain, 
 read(obj::JldDataset, ::Type{Char}) = @compat Char(read(obj.plain, UInt32))
 
 # UTF16String (not defined in julia 0.2)
-if VERSION >= v"0.3-"
+if UTF16STRING_EXISTS
     read(obj::JldDataset, ::Type{UTF16String}) = UTF16String(read(obj.plain, Array{UInt16}))
     read{N}(obj::JldDataset, ::Type{Array{UTF16String,N}}) = map(x->UTF16String(x), read(obj, Array{Vector{UInt16},N}))
 end
@@ -631,7 +631,7 @@ end
 @compat write(parent::Union{JldFile, JldGroup}, name::String, char::Char) = write(parent, name, uint32(char), "Char")
 
 #UTF16String
-if VERSION >= v"0.3-"
+if UTF16STRING_EXISTS
     @compat write(parent::Union{JldFile, JldGroup}, name::String, str::UTF16String) = write(parent, name, str.data, "UTF16String")
     @compat write{N}(parent::Union{JldFile, JldGroup}, name::String, strs::Array{UTF16String,N}) = write(parent, name, map(x->x.data, strs), "Array{UTF16String,$N}")
 end
