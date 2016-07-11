@@ -32,6 +32,9 @@ replacements = Any[]
 if isdefined(Core, :String) && isdefined(Core, :AbstractString)
     push!(replacements, :(s = replace(s, r"ASCIIString|UTF8String|ByteString", "String")))
 end
+if !isdefined(Base, :UTF16String)
+    push!(replacements, :(s = replace(s, "Base.UTF16String", "LegacyStrings.UTF16String")))
+end
 ex = Expr(:block, replacements...)
 @eval function julia_type(s::AbstractString)
     $ex

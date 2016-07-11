@@ -1,6 +1,5 @@
-using HDF5
-using JLD
-using Compat
+using HDF5, JLD
+using Compat, LegacyStrings
 using Compat: String, view
 using Base.Test
 
