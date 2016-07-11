@@ -19,6 +19,7 @@ const pathtypes = "/_types"
 const pathrequire = "/_require"
 const pathcreator = "/_creator"
 const name_type_attr = "julia type"
+const UTF16STRING_EXISTS = (v"0.3-" <= VERSION < v"0.5.0-dev+5271")
 
 @compat typealias BitsKindOrString Union{HDF5BitsKind, String}
 
