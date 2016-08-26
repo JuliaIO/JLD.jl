@@ -1154,37 +1154,39 @@ end
 macro load(filename, vars...)
     if isempty(vars)
         if isa(filename, Expr)
+            warn("""@load-ing a file without specifying the variables to be loaded may produce
+                    unexpected behavior unless the file is specified as a string literal. Future
+                    versions of JLD will require that the file is specified as a string literal
+                    in this case.""")
             filename = eval(current_module(), filename)
         end
         # Load all variables in the top level of the file
-        readexprs = Array(Expr, 0)
-        vars = Array(Expr, 0)
+        readexprs = Expr[]
+        vars = Symbol[]
         f = jldopen(filename)
-        nms = names(f)
-        for n in nms
-            obj = f[n]
-            if isa(obj, JldDataset)
-                sym = esc(Symbol(n))
-                push!(readexprs, :($sym = read($f, $n)))
-                push!(vars, sym)
+        try
+            for n in names(f)
+                obj = f[n]
+                try
+                    if isa(obj, JldDataset)
+                        push!(vars, Symbol(n))
+                    end
+                finally
+                    close(obj)
+                end
             end
+        finally
+            close(f)
         end
-        return Expr(:block,
-                    Expr(:global, vars...),
-                    Expr(:try,  Expr(:block, readexprs...), false, false,
-                         :(close($f))),
-                    Symbol[v.args[1] for v in vars]) # "unescape" vars
-    else
-        readexprs = Array(Expr, length(vars))
-        for i = 1:length(vars)
-            readexprs[i] = :($(esc(vars[i])) = read(f, $(string(vars[i]))))
+    end
+    return quote
+        f = jldopen($(esc(filename)))
+        ($([esc(x) for x in vars]...),) = try
+            ($([:(read(f, $(string(x)))) for x in vars]...),)
+        finally
+            close(f)
         end
-        return Expr(:block,
-                    Expr(:global, map(esc, vars)...),
-                    :(local f = jldopen($(esc(filename)))),
-                    Expr(:try,  Expr(:block, readexprs...), false, false,
-                         :(close(f))),
-                    Symbol[v for v in vars]) # vars is a tuple
+        $(Symbol[v for v in vars]) # convert to Array
     end
 end
 

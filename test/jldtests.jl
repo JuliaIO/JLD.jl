@@ -906,3 +906,32 @@ a = load(fn)
 
 # Test whether we get a stack overflow with FileIO interface (#46)
 @test_throws ErrorException save(fn, 7)
+
+# Test load macros
+jldopen(fn, "w") do file
+    write(file, "loadmacrotestvar1", ['a', 'b', 'c'])
+    write(file, "loadmacrotestvar2", 1)
+end
+
+@eval begin # wrapped in eval since @load with no args needs file at compile time
+function f1()
+    @load $fn
+    @test loadmacrotestvar1 == ['a', 'b', 'c']
+    @test loadmacrotestvar2 == 1
+end
+end
+
+f1()
+
+function f2()
+    @load fn loadmacrotestvar1 loadmacrotestvar2
+    @test loadmacrotestvar1 == ['a', 'b', 'c']
+    @test loadmacrotestvar2 == 1
+end
+
+f2()
+
+@test !isdefined(:loadmacrotestvar1) # should not be in global scope
+@test (@eval @load $fn) == [:loadmacrotestvar1, :loadmacrotestvar2]
+@test loadmacrotestvar1 == ['a', 'b', 'c']
+@test loadmacrotestvar2 == 1
