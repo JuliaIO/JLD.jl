@@ -145,6 +145,10 @@ end
 ```
 This will cause `"MyTypes.jl"` to be loaded automatically whenever `"somedata.jld"` is opened.
 
+## If you have performance problems...
+
+Please see the complete documentation, particularly the section about custom serializers. 
+
 ## Complete documentation
 
 More extensive documentation, including information about the JLD
