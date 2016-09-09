@@ -611,7 +611,7 @@ function h5convert_array(f::JldFile, data::Array,
     if dtype == JLD_REF_TYPE
         refs = Array(HDF5ReferenceObj, length(data))
         for i = 1:length(data)
-            if isdefined(data, i)
+            if isassigned(data, i)
                 refs[i] = write_ref(f, data[i], wsession)
             else
                 refs[i] = HDF5.HDF5ReferenceObj_NULL

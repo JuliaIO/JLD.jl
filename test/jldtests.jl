@@ -566,11 +566,11 @@ for compatible in (false, true), compress in (false, true)
 
         # Special cases for reading undefs
         undef = read(fidr, "undef")
-        if !isa(undef, Array{Any, 1}) || length(undef) != 1 || isdefined(undef, 1)
+        if !isa(undef, Array{Any, 1}) || length(undef) != 1 || isassigned(undef, 1)
             error("For undef, read value does not agree with written value")
         end
         undefs = read(fidr, "undefs")
-        if !isa(undefs, Array{Any, 2}) || length(undefs) != 4 || any(map(i->isdefined(undefs, i), 1:4))
+        if !isa(undefs, Array{Any, 2}) || length(undefs) != 4 || any(map(i->isassigned(undefs, i), 1:4))
             error("For undefs, read value does not agree with written value")
         end
         ms_undef = read(fidr, "ms_undef")
@@ -644,6 +644,8 @@ for compatible in (false, true), compress in (false, true)
 
         close(fidr)
     end
+    # HDF5 1.10 gives an error when locking the file otherwise.
+    rm(fn)
 end # compress in (true,false)
 
 for compatible in (false, true), compress in (false, true)
