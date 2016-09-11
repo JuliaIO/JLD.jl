@@ -476,7 +476,7 @@ function read(obj::JldDataset, T::DataType)
         else
             x = ccall(:jl_new_struct_uninit, Any, (Any,), T)
             for i = 1:length(v)
-                if isdefined(v, i)
+                if isassigned(v, i)
                     setfield!(x, n[i], v[i])
                 end
             end
@@ -662,7 +662,7 @@ end
         z = z[ones(Int, nd-1)]
         nd = 1
         for i = 1:length(data)
-            if isdefined(data, i)
+            if isassigned(data, i)
                 if ndigits(i) > nd
                     nd = ndigits(i)
                     z = z[1:end-1]
