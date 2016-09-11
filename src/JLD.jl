@@ -601,7 +601,8 @@ end
 # Dispatch correct method for Array{Union{}}
 @compat _write(parent::Union{JldFile, JldGroup}, path::String, data::Array{Union{}},
        wsession::JldWriteSession; kargs...) =
-    invoke(_write, (Union{JldFile, JldGroup}, String, Array, JldWriteSession), parent,
+    # Keyword arguments do not currently work
+    invoke(_write, Tuple{Union{JldFile, JldGroup},String,Array,JldWriteSession}, parent,
            path, data, wsession; kargs...)
 
 # Convert an array to the format to be written to the HDF5 file, either
