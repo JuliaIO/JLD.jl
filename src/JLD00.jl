@@ -143,7 +143,7 @@ function jldopen(filename::AbstractString, rd::Bool, wr::Bool, cr::Bool, tr::Boo
             end
             if startswith(magic, magic_base.data)
                 f = HDF5.h5f_open(filename, wr ? HDF5.H5F_ACC_RDWR : HDF5.H5F_ACC_RDONLY, pa.id)
-                version = bytestring(pointer(magic) + length(magic_base))
+                version = unsafe_string(pointer(magic) + length(magic_base))
                 fj = JldFile(HDF5File(f, filename), version, true, true, mmaparrays)
                 # Load any required files/packages
                 if exists(fj, pathrequire)
@@ -1123,7 +1123,7 @@ end
 # load with just a filename returns a dictionary containing all the variables
 function load(filename::AbstractString)
     jldopen(filename, "r") do file
-        (String => Any)[var => read(file, var) for var in names(file)]
+        Dict{String,Any}([var => read(file, var) for var in names(file)])
     end
 end
 # When called with explicitly requested variable names, return each one
