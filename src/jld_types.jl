@@ -9,9 +9,9 @@ const INLINE_POINTER_IMMUTABLE = false
 
 const JLD_REF_TYPE = JldDatatype(HDF5Datatype(HDF5.H5T_STD_REF_OBJ, false), 0)
 const BUILTIN_TYPES = Set([Symbol, Type, UTF16String, BigFloat, BigInt])
-const H5CONVERT_DEFINED = ObjectIdDict()
-const JLCONVERT_DEFINED = ObjectIdDict()
-const JL_TYPENAME_TRANSLATE = Dict{String,String}()
+const JL_TYPENAME_TRANSLATE = Dict{String, String}()
+const JLCONVERT_INFO = Dict{Any, Any}()
+const H5CONVERT_INFO = Dict{Any, Any}()
 
 if VERSION >= v"0.4.0-dev+4319"
     const EMPTY_TUPLE_TYPE = Tuple{}
@@ -114,7 +114,6 @@ Base.convert(::Type{HDF5.Hid}, x::JldDatatype) = x.dtype.id
 ##
 ## - Define a method of h5fieldtype that dispatches to h5type
 ## - Define a method of h5type that constructs the type
-## - Define a no-op method for gen_h5convert
 ## - Define h5convert! and jlconvert
 ## - If the type is an immutable, define jlconvert!
 ## - Add the type to BUILTIN_TYPES
@@ -130,7 +129,6 @@ h5fieldtype(parent::JldFile, T::BitsKindTypes, ::Bool) =
 h5type(::JldFile, T::BitsKindTypes, ::Bool) =
     JldDatatype(HDF5Datatype(HDF5.hdf5_type_id(T), false), 0)
 
-gen_h5convert(::JldFile, ::BitsKindTypes) = nothing
 h5convert!{T<:HDF5.HDF5BitsKind}(out::Ptr, ::JldFile, x::T, ::JldWriteSession) =
     unsafe_store!(convert(Ptr{T}, out), x)
 
@@ -145,10 +143,9 @@ jlconvert!(out::Ptr, T::BitsKindTypes, ::JldFile, ptr::Ptr) = _jlconvert_bits!(o
 
 typealias VoidType Type{@compat(Void)}
 
-gen_jlconvert(typeinfo::JldTypeInfo, T::VoidType) = nothing
-
 jlconvert(T::VoidType, ::JldFile, ptr::Ptr) = nothing
 jlconvert!(out::Ptr, T::VoidType, ::JldFile, ptr::Ptr) = (unsafe_store!(convert(Ptr{T}, out), nothing); nothing)
+h5convert!(out::Ptr, ::JldFile, x::@compat(Void), ::JldWriteSession) = nothing
 
 ## Strings
 
@@ -163,7 +160,6 @@ function h5type{T<:String}(::JldFile, ::Type{T}, ::Bool)
     JldDatatype(HDF5Datatype(type_id, false), 0)
 end
 
-gen_h5convert{T<:String}(::JldFile, ::Type{T}) = nothing
 h5convert!(out::Ptr, ::JldFile, x::String, ::JldWriteSession) =
     unsafe_store!(convert(Ptr{Ptr{UInt8}}, out), pointer(x))
 
@@ -198,7 +194,6 @@ function h5type(parent::JldFile, ::Type{UTF16String}, commit::Bool)
     commit ? commit_datatype(parent, dtype, UTF16String) : JldDatatype(dtype, -1)
 end
 
-gen_h5convert(::JldFile, ::Type{UTF16String}) = nothing
 h5convert!(out::Ptr, ::JldFile, x::UTF16String, ::JldWriteSession) =
     unsafe_store!(convert(Ptr{HDF5.Hvl_t}, out), HDF5.Hvl_t(length(x.data), pointer(x.data)))
 
@@ -221,7 +216,6 @@ function h5type(parent::JldFile, ::Type{Symbol}, commit::Bool)
     commit ? commit_datatype(parent, dtype, Symbol) : JldDatatype(dtype, -1)
 end
 
-gen_h5convert(::JldFile, ::Type{Symbol}) = nothing
 function h5convert!(out::Ptr, file::JldFile, x::Symbol, wsession::JldWriteSession)
     str = string(x)
     push!(wsession.persist, str)
@@ -245,7 +239,6 @@ jlconvert(::Type{Symbol}, file::JldFile, ptr::Ptr) = Symbol(jlconvert(Compat.UTF
     commit ? commit_datatype(parent, dtype, T) : JldDatatype(dtype, -1)
 end
 
-@compat gen_h5convert(::JldFile, ::Union{Type{BigInt}, Type{BigFloat}}) = nothing
 function h5convert!(out::Ptr, file::JldFile, x::BigInt, wsession::JldWriteSession)
     str = base(62, x)
     push!(wsession.persist, str)
@@ -280,8 +273,6 @@ function h5type{T<:Type}(parent::JldFile, ::Type{T}, commit::Bool)
     dtype = HDF5Datatype(id, parent.plain)
     out = commit ? commit_datatype(parent, dtype, Type) : JldDatatype(dtype, -1)
 end
-
-gen_h5convert{T<:Type}(::JldFile, ::Type{T}) = nothing
 
 function h5convert!(out::Ptr, file::JldFile, x::Type, wsession::JldWriteSession)
     str = full_typename(file, x)
@@ -349,30 +340,6 @@ function h5type(parent::JldFile, T::TupleType, commit::Bool)
     end
 end
 
-function gen_jlconvert(typeinfo::JldTypeInfo, T::TupleType)
-    haskey(JLCONVERT_DEFINED, T) && return
-
-    ex = Expr(:block)
-    args = ex.args
-    tup = Expr(:tuple)
-    tupargs = tup.args
-    types = tupletypes(T)
-    for i = 1:length(typeinfo.dtypes)
-        h5offset = typeinfo.offsets[i]
-        field = Symbol(string("field", i))
-
-        if HDF5.h5t_get_class(typeinfo.dtypes[i]) == HDF5.H5T_REFERENCE
-            push!(args, :($field = read_ref(file, unsafe_load(convert(Ptr{HDF5ReferenceObj}, ptr)+$h5offset))))
-        else
-            push!(args, :($field = jlconvert($(types[i]), file, ptr+$h5offset)))
-        end
-        push!(tupargs, field)
-    end
-    @eval jlconvert(::Type{$T}, file::JldFile, ptr::Ptr) = ($ex; $tup)
-    JLCONVERT_DEFINED[T] = true
-    nothing
-end
-
 ## All other objects
 
 # For cases not defined above: If the type is mutable and non-empty,
@@ -422,6 +389,7 @@ end
 function _gen_jlconvert_type(typeinfo::JldTypeInfo, T::ANY)
     ex = Expr(:block)
     args = ex.args
+    push!(args, :(out = ccall(:jl_new_struct_uninit, Ref{T}, (Any,), T)))
     for i = 1:length(typeinfo.dtypes)
         h5offset = typeinfo.offsets[i]
 
@@ -436,16 +404,63 @@ function _gen_jlconvert_type(typeinfo::JldTypeInfo, T::ANY)
             push!(args, :(out.$(fieldnames(T)[i]) = jlconvert($(T.types[i]), file, ptr+$h5offset)))
         end
     end
-    @eval function jlconvert(::Type{$T}, file::JldFile, ptr::Ptr)
-        out = ccall(:jl_new_struct_uninit, Any, (Any,), $T)::$T
-        $ex
-        out
-    end
-    nothing
+    push!(args, :(return out))
+    return ex
+end
+
+function _gen_jlconvert_type!(typeinfo::JldTypeInfo, T::ANY)
+    error("unimplemented")
 end
 
 # Immutables
 function _gen_jlconvert_immutable(typeinfo::JldTypeInfo, T::ANY)
+    ex = Expr(:block)
+    args = ex.args
+    if VERSION >= v"0.5.0-dev+2285"
+        jloffsets = map(idx->fieldoffset(T, idx), 1:nfields(T))
+    else
+        jloffsets = fieldoffsets(T)
+    end
+    if datatype_pointerfree(T)
+        push!(args, :(out = Ref{T}()))
+        push!(args, :(jlconvert!(unsafe_convert(Ptr{T}, out), T, file, ptr)))
+        push!(args, :(return out[]))
+    else
+        push!(args, :(out = ccall(:jl_new_struct_uninit, Ref{T}, (Any,), T)))
+        for i = 1:length(typeinfo.dtypes)
+            h5offset = typeinfo.offsets[i]
+            jloffset = jloffsets[i]
+            obj = gensym("obj")
+            if isa(T.types[i], TupleType) && VERSION >= v"0.4.0-dev+4319" && datatype_pointerfree(T.types[i])
+                # We continue to store tuples as references for the sake of
+                # backwards compatibility, but on 0.4 they are now stored
+                # inline
+                push!(args, quote
+                    ref = unsafe_load(convert(Ptr{HDF5ReferenceObj}, ptr)+$h5offset)
+                    if ref == HDF5.HDF5ReferenceObj_NULL
+                        warn("""A pointerfree tuple field was undefined.
+                                This is not supported in Julia 0.4 and the corresponding tuple will be uninitialized.""")
+                    else
+                        ccall(:jl_set_nth_field, Void, (Any, Csize_t, Any), out, $(i-1), convert($(T.types[i]), read_ref(file, ref)))
+                    end
+                end)
+            elseif HDF5.h5t_get_class(typeinfo.dtypes[i]) == HDF5.H5T_REFERENCE
+                push!(args, quote
+                    ref = unsafe_load(convert(Ptr{HDF5ReferenceObj}, ptr)+$h5offset)
+                    if ref != HDF5.HDF5ReferenceObj_NULL
+                        ccall(:jl_set_nth_field, Void, (Any, Csize_t, Any), out, $(i-1), convert($(T.types[i]), read_ref(file, ref)))
+                    end
+                end)
+            else
+                push!(args, :(ccall(:jl_set_nth_field, Void, (Any, Csize_t, Any), out, $(i-1), jlconvert($(T.types[i]), file, ptr+$h5offset))))
+            end
+        end
+        push!(args, :(return out))
+    end
+    return ex
+end
+
+function _gen_jlconvert_immutable!(typeinfo::JldTypeInfo, T::ANY)
     ex = Expr(:block)
     args = ex.args
     if VERSION >= v"0.5.0-dev+2285"
@@ -477,83 +492,93 @@ function _gen_jlconvert_immutable(typeinfo::JldTypeInfo, T::ANY)
                 push!(args, :(jlconvert!(out+$jloffset, $(T.types[i]), file, ptr+$h5offset)))
             end
         end
-        @eval begin
-            jlconvert!(out::Ptr, ::Type{$T}, file::JldFile, ptr::Ptr) = ($ex; nothing)
-            function jlconvert(::Type{$T}, file::JldFile, ptr::Ptr)
-                out = Array($T, 1)
-                jlconvert!(pointer(out), $T, file, ptr)
-                out[1]
-            end
-        end
     else
-        for i = 1:length(typeinfo.dtypes)
-            h5offset = typeinfo.offsets[i]
-            jloffset = jloffsets[i]
-            obj = gensym("obj")
-            if isa(T.types[i], TupleType) && VERSION >= v"0.4.0-dev+4319" && datatype_pointerfree(T.types[i])
-                # We continue to store tuples as references for the sake of
-                # backwards compatibility, but on 0.4 they are now stored
-                # inline
-                push!(args, quote
-                    ref = unsafe_load(convert(Ptr{HDF5ReferenceObj}, ptr)+$h5offset)
-                    if ref == HDF5.HDF5ReferenceObj_NULL
-                        warn("""A pointerfree tuple field was undefined.
-                                This is not supported in Julia 0.4 and the corresponding tuple will be uninitialized.""")
-                    else
-                        ccall(:jl_set_nth_field, Void, (Any, Csize_t, Any), out, $(i-1), convert($(T.types[i]), read_ref(file, ref)))
-                    end
-                end)
-            elseif HDF5.h5t_get_class(typeinfo.dtypes[i]) == HDF5.H5T_REFERENCE
-                push!(args, quote
-                    ref = unsafe_load(convert(Ptr{HDF5ReferenceObj}, ptr)+$h5offset)
-                    if ref != HDF5.HDF5ReferenceObj_NULL
-                        ccall(:jl_set_nth_field, Void, (Any, Csize_t, Any), out, $(i-1), convert($(T.types[i]), read_ref(file, ref)))
-                    end
-                end)
-            else
-                push!(args, :(ccall(:jl_set_nth_field, Void, (Any, Csize_t, Any), out, $(i-1), jlconvert($(T.types[i]), file, ptr+$h5offset))))
-            end
-        end
-        @eval function jlconvert(::Type{$T}, file::JldFile, ptr::Ptr)
-            out = ccall(:jl_new_struct_uninit, Any, (Any,), $T)::$T
-            $ex
-            out
-        end
+        error("unimplemented")
     end
+    push!(args, nothing)
+    return ex
+end
+
+function _gen_jlconvert_tuple(typeinfo::JldTypeInfo, T::ANY)
+    # custom converter (rather than falling back to immutable datatype handling)
+    # as we need to make sure to return a valid Tuple leaf type,
+    # but some parameters of T may be Any
+    ex = Expr(:block)
+    args = ex.args
+    tup = Expr(:tuple)
+    tupargs = tup.args
+    types = tupletypes(T)
+    for i = 1:length(typeinfo.dtypes)
+        h5offset = typeinfo.offsets[i]
+        field = Symbol(string("field", i))
+
+        if HDF5.h5t_get_class(typeinfo.dtypes[i]) == HDF5.H5T_REFERENCE
+            push!(args, :($field = read_ref(file, unsafe_load(convert(Ptr{HDF5ReferenceObj}, ptr)+$h5offset))))
+        else
+            push!(args, :($field = jlconvert($(types[i]), file, ptr+$h5offset)))
+        end
+        push!(tupargs, field)
+    end
+    push!(args, :(return $tup))
+    return ex
+end
+
+
+function gen_jlconvert(typeinfo::JldTypeInfo, T::ANY)
+    T === Void && return
+    # TODO: this is probably invalid, so try to do this differently
+    JLCONVERT_INFO[T] = typeinfo
     nothing
 end
 
-const DONT_STORE_SINGLETON_IMMUTABLES = VERSION >= v"0.4.0-dev+385"
-function gen_jlconvert(typeinfo::JldTypeInfo, T::ANY)
-    haskey(JLCONVERT_DEFINED, T) && return
-
-    if isempty(fieldnames(T))
+function gen_jlconvert(T::ANY)
+    typeinfo = JLCONVERT_INFO[T]::JldTypeInfo
+    if isa(T, TupleType)
+        return _gen_jlconvert_tuple(typeinfo, T)
+    elseif isempty(fieldnames(T))
         if T.size == 0
-            @eval begin
-                jlconvert(::Type{$T}, ::JldFile, ::Ptr) = $T()
-                jlconvert!(out::Ptr, ::Type{$T}, ::JldFile, ::Ptr) =
-                    $(DONT_STORE_SINGLETON_IMMUTABLES && !T.mutable ? nothing :
-                      :(unsafe_store!(convert(Ptr{Ptr{Void}}, out), pointer_from_objref($T()))))
+            return T.instance
+        else
+           return :(_jlconvert_bits(T, ptr))
+        end
+    elseif T.size == 0
+        return :(ccall(:jl_new_struct_uninit, Ref{T}, (Any,), T))
+    elseif T.mutable
+        return _gen_jlconvert_type(typeinfo, T)
+    else
+        return _gen_jlconvert_immutable(typeinfo, T)
+    end
+end
+
+function gen_jlconvert!(T::ANY)
+    typeinfo = JLCONVERT_INFO[T]::JldTypeInfo
+    if isa(T, TupleType)
+        error("unimplemented")
+    elseif isempty(fieldnames(T))
+        if T.size == 0
+            if !T.mutable
+                return nothing
+            else
+                return :(unsafe_store!(convert(Ptr{Any}, out), $(T.instance)); nothing)
             end
         else
-            @eval begin
-               jlconvert(::Type{$T}, ::JldFile, ptr::Ptr) =  _jlconvert_bits($T, ptr)
-               jlconvert!(out::Ptr, ::Type{$T}, ::JldFile, ptr::Ptr) =  _jlconvert_bits!(out, $T, ptr)
-            end
+           return :(_jlconvert_bits!(out, T, ptr); nothing)
         end
-        nothing
     elseif T.size == 0
-        @eval begin
-            jlconvert(::Type{$T}, ::JldFile, ::Ptr) = ccall(:jl_new_struct_uninit, Any, (Any,), $T)::$T
-            jlconvert!(out::Ptr, ::Type{$T}, ::JldFile, ::Ptr) = nothing
-        end
+        return nothing
     elseif T.mutable
-        _gen_jlconvert_type(typeinfo, T)
+        return _gen_jlconvert_type!(typeinfo, T)
     else
-        _gen_jlconvert_immutable(typeinfo, T)
+        return _gen_jlconvert_immutable!(typeinfo, T)
     end
-    JLCONVERT_DEFINED[T] = true
-    nothing
+end
+
+@generated function jlconvert!{T}(out::Ptr, ::Type{T}, file::JldFile, ptr::Ptr)
+    return gen_jlconvert!(T)
+end
+
+@generated function jlconvert{T}(::Type{T}, file::JldFile, ptr::Ptr)
+    return gen_jlconvert(T)
 end
 
 ## Common functions for all non-special types (including gen_h5convert)
@@ -579,26 +604,47 @@ unknown_type_err(T) =
     error("""$T is not of a type supported by JLD
              Please report this error at https://github.com/timholy/HDF5.jl""")
 
-gen_h5convert(parent::JldFile, T) =
-    haskey(H5CONVERT_DEFINED, T) || _gen_h5convert(parent, T)
+const BUILTIN_H5_types = Union{Void, Type, String, HDF5.HDF5BitsKind, UTF16String, Symbol, BigInt, BigFloat}
+function gen_h5convert(parent::JldFile, T::ANY)
+    T <: BUILTIN_H5_types && return
+    # TODO: this is probably invalid, so try to do this differently
+    haskey(H5CONVERT_INFO, T) && return
+    H5CONVERT_INFO[T] = parent
+
+    dtype = parent.jlh5type[T].dtype
+    istuple = isa(T, TupleType)
+
+    if isopaque(T)
+        return
+    end
+
+    if istuple
+        types = tupletypes(T)
+    else
+        types = (T::DataType).types
+    end
+
+    n = HDF5.h5t_get_nmembers(dtype.id)
+    for i = 1:n
+        if HDF5.h5t_get_member_class(dtype.id, i-1) != HDF5.H5T_REFERENCE
+            gen_h5convert(parent, types[i])
+        end
+    end
+    nothing
+end
 
 # There is no point in specializing this
-function _gen_h5convert(parent::JldFile, T::ANY)
-    if haskey(H5CONVERT_DEFINED, T)
-        error("redefined")
-    end
+function _gen_h5convert!(T::ANY)
+    parent = H5CONVERT_INFO[T]::JldFile
     dtype = parent.jlh5type[T].dtype
     istuple = isa(T, TupleType)
 
     if isopaque(T)
         if T.size == 0
-            @eval h5convert!(out::Ptr, ::JldFile, x::$T, ::JldWriteSession) = nothing
+            return nothing
         else
-            @eval h5convert!(out::Ptr, ::JldFile, x::$T, ::JldWriteSession) =
-                unsafe_store!(convert(Ptr{$T}, out), x)
+            return :(unsafe_store!(convert(Ptr{T}, out), x))
         end
-        H5CONVERT_DEFINED[T] = true
-        return
     end
 
     if istuple
@@ -628,13 +674,15 @@ function _gen_h5convert(parent::JldFile, T::ANY)
                 end)
             end
         else
-            gen_h5convert(parent, types[i])
             push!(args, :(h5convert!(out+$offset, file, $getindex_fn(x, $i), wsession)))
         end
     end
-    @eval h5convert!(out::Ptr, file::JldFile, x::$T, wsession::JldWriteSession) = ($ex; nothing)
-    H5CONVERT_DEFINED[T] = true
-    nothing
+    push!(args, nothing)
+    return ex
+end
+
+@generated function h5convert!{T}(out::Ptr, file::JldFile, x::T, wsession::JldWriteSession)
+    return _gen_h5convert!(T)
 end
 
 ## Find the corresponding Julia type for a given HDF5 type
