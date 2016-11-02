@@ -983,8 +983,14 @@ end
 
 @compat function julia_type(e::Union{Symbol, Expr})
     if is_valid_type_ex(e)
-        try     # try needed to catch undefined symbols
+        try # `try` needed to catch undefined symbols
             typ = eval(current_module(), e)
+            isa(typ, Type) && return typ
+        end
+        try
+            # It's possible that `e` will represent a type not present in current_module(),
+            # but as long as `e` is fully qualified, it should exist/be reachable from Main
+            typ = eval(Main, e)
             isa(typ, Type) && return typ
         end
     end
