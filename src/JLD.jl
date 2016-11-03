@@ -1010,9 +1010,9 @@ function full_typename(io::IO, file::JldFile, jltype::UnionType)
     print(io, ')')
 end
 function full_typename(io::IO, file::JldFile, tv::TypeVar)
-    @compat if is(tv.lb, Union{}) && is(tv.ub, Any)
+    @compat if tv.lb === Union{} && tv.ub === Any
         print(io, "TypeVar(:", tv.name, ")")
-    elseif is(tv.lb, Union{})
+    elseif tv.lb === Union{}
         print(io, "TypeVar(:", tv.name, ",")
         full_typename(io, file, tv.ub)
         print(io, ')')
