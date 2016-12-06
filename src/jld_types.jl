@@ -13,19 +13,11 @@ const JL_TYPENAME_TRANSLATE = Dict{String, String}()
 const JLCONVERT_INFO = Dict{Any, Any}()
 const H5CONVERT_INFO = Dict{Any, Any}()
 
-if VERSION >= v"0.4.0-dev+4319"
-    const EMPTY_TUPLE_TYPE = Tuple{}
-    typealias TypesType SimpleVector
-    typealias TupleType{T<:Tuple} Type{T}
-    tupletypes(T::TupleType) = T.parameters
-    typetuple(types) = Tuple{types...}
-else
-    const EMPTY_TUPLE_TYPE = ()
-    typealias TypesType @compat Tuple{Vararg{Type}}
-    typealias TupleType @compat Tuple{Vararg{Type}}
-    tupletypes(T::TupleType) = T
-    typetuple(types) = tuple(types...)
-end
+const EMPTY_TUPLE_TYPE = Tuple{}
+typealias TypesType SimpleVector
+typealias TupleType{T<:Tuple} Type{T}
+tupletypes(T::TupleType) = T.parameters
+typetuple(types) = Tuple{types...}
 
 ## Helper functions
 
@@ -250,13 +242,8 @@ function h5convert!(out::Ptr, file::JldFile, x::BigFloat, wsession::JldWriteSess
     h5convert!(out, file, str, wsession)
 end
 
-if VERSION < v"0.4.0-dev+3864"
-    jlconvert(::Type{BigInt}, file::JldFile, ptr::Ptr) =
-        Base.parseint_nocheck(BigInt, jlconvert(Compat.ASCIIString, file, ptr), 62)
-else
-    jlconvert(::Type{BigInt}, file::JldFile, ptr::Ptr) =
-        parse(BigInt, jlconvert(Compat.ASCIIString, file, ptr), 62)
-end
+jlconvert(::Type{BigInt}, file::JldFile, ptr::Ptr) =
+    parse(BigInt, jlconvert(Compat.ASCIIString, file, ptr), 62)
 jlconvert(::Type{BigFloat}, file::JldFile, ptr::Ptr) =
     parse(BigFloat, jlconvert(Compat.ASCIIString, file, ptr))
 
@@ -598,7 +585,7 @@ opaquesize(t::DataType) = max(1, t.size)
 # INLINE_TUPLE or INLINE_POINTER_IMMUTABLE is true.
 uses_reference(T::DataType) = !datatype_pointerfree(T)
 uses_reference(::TupleType) = true
-uses_reference(::UnionType) = true
+uses_reference(::Union) = true
 
 unknown_type_err(T) =
     error("""$T is not of a type supported by JLD

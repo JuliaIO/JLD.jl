@@ -217,10 +217,8 @@ bitsparamint16  = BitsParams{@compat Int16(1)}()
 tuple_of_tuples = (1, 2, (3, 4, [5, 6]), [7, 8])
 
 # SimpleVector
-if VERSION >= v"0.4.0-dev+4319"
-    simplevec = Core.svec(1, 2, Int64, "foo")
-    iseq(x::SimpleVector, y::SimpleVector) = collect(x) == collect(y)
-end
+simplevec = Core.svec(1, 2, Int64, "foo")
+iseq(x::SimpleVector, y::SimpleVector) = collect(x) == collect(y)
 
 # Issue #243
 # Type that overloads != so that it is not boolean
@@ -491,7 +489,7 @@ for compatible in (false, true), compress in (false, true)
     @write fid bitsparamint
     @write fid bitsparamuint
     @write fid tuple_of_tuples
-    VERSION >= v"0.4.0-dev+4319" && @write fid simplevec
+    @write fid simplevec
     @write fid natyperef
 
     # Make sure we can create groups (i.e., use HDF5 features)
@@ -634,7 +632,7 @@ for compatible in (false, true), compress in (false, true)
         @check fidr bitsparamint
         @check fidr bitsparamuint
         @check fidr tuple_of_tuples
-        VERSION >= v"0.4.0-dev+4319" && @check fidr simplevec
+        @check fidr simplevec
         @check fidr natyperef
 
         x1 = read(fidr, "group1/x")
