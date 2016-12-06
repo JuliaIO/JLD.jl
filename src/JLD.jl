@@ -1095,7 +1095,7 @@ function full_typename(file::JldFile, x)
     io = IOBuffer(Array(UInt8, 64), true, true)
     truncate(io, 0)
     full_typename(io, file, x)
-    takebuf_string(io)
+    String(take!(io))
 end
 
 function truncate_module_path(file::JldFile, mod::Module)
