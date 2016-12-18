@@ -230,6 +230,9 @@ type NALikeType; end
 @compat Base.:(!=)(::Void, ::NALikeType) = NALikeType()
 natyperef = Any[NALikeType(), NALikeType()]
 
+# Issue #110
+ver = v"0.1.2"
+
 iseq(x,y) = isequal(x,y)
 iseq(x::MyStruct, y::MyStruct) = (x.len == y.len && x.data == y.data)
 iseq(x::MyImmutable, y::MyImmutable) = (isequal(x.x, y.x) && isequal(x.y, y.y) && isequal(x.z, y.z))
@@ -493,6 +496,7 @@ for compatible in (false, true), compress in (false, true)
     @write fid tuple_of_tuples
     VERSION >= v"0.4.0-dev+4319" && @write fid simplevec
     @write fid natyperef
+    @write fid ver
 
     # Make sure we can create groups (i.e., use HDF5 features)
     g = g_create(fid, "mygroup")
@@ -636,6 +640,7 @@ for compatible in (false, true), compress in (false, true)
         @check fidr tuple_of_tuples
         VERSION >= v"0.4.0-dev+4319" && @check fidr simplevec
         @check fidr natyperef
+        @check fidr ver
 
         x1 = read(fidr, "group1/x")
         @assert x1 == Any[1]
