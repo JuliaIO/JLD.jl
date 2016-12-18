@@ -20,9 +20,7 @@ end
 
 # See julia issue #8907
 replacements = Any[]
-if VERSION >= v"0.4.0-dev+1419"
-    push!(replacements, :(s = replace(s, r"Uint(?=\d{1,3})", "UInt")))
-end
+push!(replacements, :(s = replace(s, r"Uint(?=\d{1,3})", "UInt")))
 if isdefined(Core, :String) && isdefined(Core, :AbstractString)
     push!(replacements, :(s = replace(s, r"ASCIIString|UTF8String|ByteString", "String")))
 end
@@ -30,11 +28,6 @@ ex = Expr(:block, replacements...)
 @eval function julia_type(s::AbstractString)
     $ex
     _julia_type(s)
-end
-
-if VERSION >= v"0.4.0-dev+5379"
-    # Just rename the uses when we drop 0.3 support
-    const UnionType = Union
 end
 
 const magic_base = "Julia data file (HDF5), version "
@@ -413,11 +406,8 @@ read{N}(obj::JldDataset, ::Type{Array{Symbol,N}}) = map(Symbol, read(obj.plain, 
 # Char
 read(obj::JldDataset, ::Type{Char}) = @compat Char(read(obj.plain, UInt32))
 
-# UTF16String (not defined in julia 0.2)
-if VERSION >= v"0.3-"
-    read(obj::JldDataset, ::Type{UTF16String}) = UTF16String(read(obj.plain, Array{UInt16}))
-    read{N}(obj::JldDataset, ::Type{Array{UTF16String,N}}) = map(x->UTF16String(x), read(obj, Array{Vector{UInt16},N}))
-end
+read(obj::JldDataset, ::Type{UTF16String}) = UTF16String(read(obj.plain, Array{UInt16}))
+read{N}(obj::JldDataset, ::Type{Array{UTF16String,N}}) = map(x->UTF16String(x), read(obj, Array{Vector{UInt16},N}))
 
 # General arrays
 read{T,N}(obj::JldDataset, t::Type{Array{T,N}}) = getrefs(obj, T)
@@ -631,10 +621,8 @@ end
 @compat write(parent::Union{JldFile, JldGroup}, name::String, char::Char) = write(parent, name, uint32(char), "Char")
 
 #UTF16String
-if VERSION >= v"0.3-"
-    @compat write(parent::Union{JldFile, JldGroup}, name::String, str::UTF16String) = write(parent, name, str.data, "UTF16String")
-    @compat write{N}(parent::Union{JldFile, JldGroup}, name::String, strs::Array{UTF16String,N}) = write(parent, name, map(x->x.data, strs), "Array{UTF16String,$N}")
-end
+@compat write(parent::Union{JldFile, JldGroup}, name::String, str::UTF16String) = write(parent, name, str.data, "UTF16String")
+@compat write{N}(parent::Union{JldFile, JldGroup}, name::String, strs::Array{UTF16String,N}) = write(parent, name, map(x->x.data, strs), "Array{UTF16String,$N}")
 
 # General array types (as arrays of references)
 @compat function write{T}(parent::Union{JldFile, JldGroup}, path::String, data::Array{T}, astype::AbstractString)
@@ -980,7 +968,7 @@ function _julia_type(s::AbstractString)
 end
 
 ### Converting Julia types to fully qualified names
-full_typename(jltype::UnionType) = @sprintf "Union(%s)" join(map(full_typename, jltype.types), ",")
+full_typename(jltype::Union) = @sprintf "Union(%s)" join(map(full_typename, jltype.types), ",")
 function full_typename(tv::TypeVar)
     @compat if is(tv.lb, Union{}) && is(tv.ub, Any)
         "TypeVar(:$(tv.name))"

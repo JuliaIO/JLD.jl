@@ -2,7 +2,7 @@
 ## Reading and writing Julia data .jld files ##
 ###############################################
 
-VERSION >= v"0.4.0-dev+6521" && __precompile__()
+__precompile__()
 
 module JLD
 using HDF5, FileIO, Compat
@@ -39,11 +39,6 @@ ex = Expr(:block, replacements...)
 @eval function julia_type(s::AbstractString)
     $ex
     _julia_type(s)
-end
-
-if VERSION >= v"0.4.0-dev+5379"
-    # Just rename the uses when we drop 0.3 support
-    const UnionType = Union
 end
 
 ### Dummy types used for converting attribute strings to Julia types
@@ -807,10 +802,7 @@ function writeas{T<:Associative}(x::T)
     K, V = destructure(eltype(x))
     convert(AssociativeWrapper{K,V,T}, x)
 end
-destructure(x) = x
-if VERSION >= v"0.4.0-dev+6265"
-    destructure{K,V}(::Type{Pair{K,V}}) = K, V  # not inferrable, julia#10880
-end
+destructure{K,V}(::Type{Pair{K,V}}) = K, V  # not inferrable, julia#10880
 
 # Special case for associative, to rehash keys
 function convert{K,V,T<:Associative}(::Type{T}, x::AssociativeWrapper{K,V,T})
@@ -846,10 +838,8 @@ immutable SimpleVectorWrapper
 end
 
 # Special case for SimpleVector
-if VERSION >= v"0.4.0-dev+4319"
-    readas(x::SimpleVectorWrapper) = Core.svec(x.elements...)
-    writeas(x::SimpleVector) = SimpleVectorWrapper([x...])
-end
+readas(x::SimpleVectorWrapper) = Core.svec(x.elements...)
+writeas(x::SimpleVector) = SimpleVectorWrapper([x...])
 
 # function to convert string(mod::Module) back to mod::Module
 function modname2mod(modname::AbstractString)
@@ -872,16 +862,14 @@ end
 readas(ast::AnonymousFunctionSerializer) = eval(modname2mod(ast.mod)).eval(ast.expr)
 writeas(fun::Function) = AnonymousFunctionSerializer(fun)
 
-if VERSION >= v"0.4.0-dev+6807"
-    # Serializer for GlobalRef
-    immutable GlobalRefSerializer
-        mod::AbstractString
-        name::Symbol
-        GlobalRefSerializer(g::GlobalRef) = new(string(g.mod), g.name)
-    end
-    readas(grs::GlobalRefSerializer) = GlobalRef(eval(modname2mod(grs.mod)), grs.name)
-    writeas(gr::GlobalRef) = GlobalRefSerializer(gr)
+# Serializer for GlobalRef
+immutable GlobalRefSerializer
+    mod::AbstractString
+    name::Symbol
+    GlobalRefSerializer(g::GlobalRef) = new(string(g.mod), g.name)
 end
+readas(grs::GlobalRefSerializer) = GlobalRef(eval(modname2mod(grs.mod)), grs.name)
+writeas(gr::GlobalRef) = GlobalRefSerializer(gr)
 
 ### Converting attribute strings to Julia types
 
@@ -891,23 +879,13 @@ is_valid_type_ex{T}(::T) = isbits(T)
 is_valid_type_ex(e::Expr) = ((e.head == :curly || e.head == :tuple || e.head == :.) && all(is_valid_type_ex, e.args)) ||
                             (e.head == :call && (e.args[1] == :Union || e.args[1] == :TypeVar || e.args[1] == :symbol))
 
-if VERSION >= v"0.4.0-dev+1419"
-    const typemap_Core = @compat Dict(
-        :Uint8 => :UInt8,
-        :Uint16 => :Uint16,
-        :Uint32 => :UInt32,
-        :Uint64 => :UInt64,
-        :Nothing => :Void
-    )
-else
-    const typemap_Core = @compat Dict(
-        :UInt8 => :Uint8,
-        :UInt16 => :Uint16,
-        :UInt32 => :Uint32,
-        :UInt64 => :Uint64,
-        :Void => :Nothing
-    )
-end
+const typemap_Core = Dict(
+    :Uint8 => :UInt8,
+    :Uint16 => :Uint16,
+    :Uint32 => :UInt32,
+    :Uint64 => :UInt64,
+    :Nothing => :Void
+)
 
 const _typedict = Dict{Compat.UTF8String,Type}()
 
@@ -930,35 +908,14 @@ fixtypes(typ) = typ
             typ.args[i] = fixtypes(typ.args[i])
         end
 
-        $(if VERSION >= v"0.4.0-dev+5379"
-            quote
-                if (typ.head == :call && !isempty(typ.args) &&
-                    typ.args[1] == :Union)
-                    return Expr(:curly, typ.args...)
-                end
-            end
-        else
-            quote
-                if (typ.head == :curly && !isempty(typ.args) &&
-                    typ.args[1] == :Union)
-                    return Expr(:call, typ.args...)
-                end
-            end
-        end)
+        if (typ.head == :call && !isempty(typ.args) &&
+            typ.args[1] == :Union)
+            return Expr(:curly, typ.args...)
+        end
 
-        $(if VERSION >= v"0.4.0-dev+4319"
-            quote
-                if typ.head == :tuple
-                    return Expr(:curly, :Tuple, typ.args...)
-                end
-            end
-        else
-            quote
-                if typ.head == :curly && !isempty(typ.args) && typ.args[1] == :(Core.Tuple)
-                    return Expr(:tuple, typ.args[2:end]...)
-                end
-            end
-        end)
+        if typ.head == :tuple
+            return Expr(:curly, :Tuple, typ.args...)
+        end
         typ
     end
 end
@@ -998,7 +955,7 @@ end
 end
 
 ### Converting Julia types to fully qualified names
-function full_typename(io::IO, file::JldFile, jltype::UnionType)
+function full_typename(io::IO, file::JldFile, jltype::Union)
     print(io, "Union(")
     if !isempty(jltype.types)
         full_typename(io, file, jltype.types[1])
@@ -1023,16 +980,6 @@ function full_typename(io::IO, file::JldFile, tv::TypeVar)
         full_typename(io, file, tv.lb)
         print(io, ',')
         full_typename(io, file, tv.ub)
-        print(io, ')')
-    end
-end
-if VERSION < v"0.4.0-dev+4319"
-    function full_typename(io::IO, file::JldFile, jltype::@compat Tuple{Vararg{Type}})
-        print(io, '(')
-        for t in jltype
-            full_typename(io, file, t)
-            print(io, ',')
-        end
         print(io, ')')
     end
 end
@@ -1095,7 +1042,7 @@ function full_typename(file::JldFile, x)
     io = IOBuffer(Array(UInt8, 64), true, true)
     truncate(io, 0)
     full_typename(io, file, x)
-    takebuf_string(io)
+    String(take!(io))
 end
 
 function truncate_module_path(file::JldFile, mod::Module)
