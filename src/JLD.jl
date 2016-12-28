@@ -147,7 +147,7 @@ function close(f::JldFile)
         if f.writeheader
             magic = zeros(UInt8, 512)
             tmp = string(magic_base, f.version)
-            magic[1:length(tmp)] = tmp.data
+            magic[1:length(tmp)] = Vector{UInt8}(tmp)
             rawfid = open(f.plain.filename, "r+")
             write(rawfid, magic)
             close(rawfid)
@@ -210,7 +210,7 @@ function jldopen(filename::AbstractString, rd::Bool, wr::Bool, cr::Bool, tr::Boo
             finally
                 close(rawfid)
             end
-            if startswith(magic, magic_base.data)
+            if startswith(magic, Vector{UInt8}(magic_base))
                 version = convert(VersionNumber, unsafe_string(pointer(magic) + length(magic_base)))
                 if version < v"0.1.0"
                     if !isdefined(JLD, :JLD00)
