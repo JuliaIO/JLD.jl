@@ -64,9 +64,15 @@ unicode_char = '\U10ffff'
 β = Any[[1, 2], [3, 4]]  # issue #93
 vv = Vector{Int}[[1,2,3]]  # issue #123
 typevar = Array{Int}[[1]]
+if JLD.TYPESYSTEM_06
+eval(parse("typevar_lb = (Vector{U} where U<:Integer)[[1]]"))
+eval(parse("typevar_ub = (Vector{U} where Int<:U<:Any)[[1]]"))
+eval(parse("typevar_lb_ub = (Vector{U} where Int<:U<:Real)[[1]]"))
+else
 typevar_lb = Vector{TypeVar(:U, Integer)}[[1]]
 typevar_ub = Vector{TypeVar(:U, Int, Any)}[[1]]
 typevar_lb_ub = Vector{TypeVar(:U, Int, Real)}[[1]]
+end
 undef = Array{Any}(1)
 undefs = Array{Any}(2, 2)
 ms_undef = MyStruct(0)

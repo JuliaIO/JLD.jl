@@ -876,8 +876,9 @@ writeas(gr::GlobalRef) = GlobalRefSerializer(gr)
 is_valid_type_ex(s::Symbol) = true
 is_valid_type_ex(s::QuoteNode) = true
 is_valid_type_ex{T}(::T) = isbits(T)
-is_valid_type_ex(e::Expr) = ((e.head == :curly || e.head == :tuple || e.head == :.) && all(is_valid_type_ex, e.args)) ||
-                            (e.head == :call && (e.args[1] == :Union || e.args[1] == :TypeVar || e.args[1] == :symbol))
+is_valid_type_ex(e::Expr) = (((e.head == :curly || e.head == :tuple || e.head == :.) && all(is_valid_type_ex, e.args)) ||
+                             (e.head == :where && is_valid_type_ex(e.args[1])) ||
+                             (e.head == :call && (e.args[1] == :Union || e.args[1] == :TypeVar || e.args[1] == :symbol)))
 
 const typemap_Core = Dict(
     :Uint8 => :UInt8,
@@ -942,12 +943,14 @@ end
     if is_valid_type_ex(e)
         try # `try` needed to catch undefined symbols
             typ = eval(current_module(), e)
+            typ == Type && return Type
             isa(typ, Type) && return typ
         end
         try
             # It's possible that `e` will represent a type not present in current_module(),
             # but as long as `e` is fully qualified, it should exist/be reachable from Main
             typ = eval(Main, e)
+            typ == Type && return Type
             isa(typ, Type) && return typ
         end
     end
@@ -957,15 +960,42 @@ end
 ### Converting Julia types to fully qualified names
 function full_typename(io::IO, file::JldFile, jltype::Union)
     print(io, "Union(")
-    if !isempty(jltype.types)
-        full_typename(io, file, jltype.types[1])
-        for i = 2:length(jltype.types)
+    types = uniontypes(jltype)
+    if !isempty(types)
+        full_typename(io, file, types[1])
+        for i = 2:length(types)
             print(io, ',')
-            full_typename(io, file, jltype.types[i])
+            full_typename(io, file, types[i])
         end
     end
     print(io, ')')
 end
+if TYPESYSTEM_06
+function full_typename(io::IO, file::JldFile, x::Core.BottomType)
+    print(io, "Union()")
+end
+function full_typename(io::IO, file::JldFile, x::UnionAll)
+    full_typename(io, file, x.body)
+    print(io, " where ")
+    tv = x.var
+    if is(tv.lb, Union{}) && is(tv.ub, Any)
+        print(io, tv.name)
+    elseif is(tv.lb, Union{})
+        print(io, tv.name)
+        print(io, "<:")
+        full_typename(io, file, tv.ub)
+    else
+        full_typename(io, file, tv.lb)
+        print(io, "<:")
+        print(io, tv.name)
+        print(io, "<:")
+        full_typename(io, file, tv.ub)
+    end
+end
+function full_typename(io::IO, file::JldFile, tv::TypeVar)
+    print(io, tv.name)
+end
+else
 function full_typename(io::IO, file::JldFile, tv::TypeVar)
     @compat if tv.lb === Union{} && tv.ub === Any
         print(io, "TypeVar(:", tv.name, ")")
@@ -982,6 +1012,7 @@ function full_typename(io::IO, file::JldFile, tv::TypeVar)
         full_typename(io, file, tv.ub)
         print(io, ')')
     end
+end
 end
 function full_typename(io::IO, ::JldFile, x)
     # Only allow bitstypes that show as AST literals and make sure that they

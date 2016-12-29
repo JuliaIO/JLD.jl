@@ -19,6 +19,8 @@ typealias TupleType{T<:Tuple} Type{T}
 tupletypes(T::TupleType) = T.parameters
 typetuple(types) = Tuple{types...}
 
+const TYPESYSTEM_06 = isdefined(Int.name, :wrapper)
+
 ## Helper functions
 
 translate(oldname::String, newname::String) = JL_TYPENAME_TRANSLATE[oldname] = newname
@@ -42,8 +44,13 @@ function JldTypeInfo(parent::JldFile, types::TypesType, commit::Bool)
     end
     JldTypeInfo(dtypes, offsets, offset)
 end
+if TYPESYSTEM_06
+JldTypeInfo(parent::JldFile, T::ANY, commit::Bool) =
+    JldTypeInfo(parent, Base.unwrap_unionall(T).types, commit)
+else
 JldTypeInfo(parent::JldFile, T::ANY, commit::Bool) =
     JldTypeInfo(parent, T.types, commit)
+end
 
 # Write an HDF5 datatype to the file
 function commit_datatype(parent::JldFile, dtype::HDF5Datatype, T::ANY)
@@ -112,8 +119,14 @@ Base.convert(::Type{HDF5.Hid}, x::JldDatatype) = x.dtype.id
 
 ## HDF5 bits kinds
 
+if TYPESYSTEM_06
+    uniontypes(t::ANY) = Base.uniontypes(t)
+else
+    uniontypes(t::ANY) = isa(t,Union) ? t.types : t
+end
+
 # This construction prevents these methods from getting called on type unions
-@compat @eval typealias BitsKindTypes Union{$(map(x->Type{x}, HDF5.HDF5BitsKind.types)...)}
+@compat @eval typealias BitsKindTypes Union{$(map(x->Type{x}, uniontypes(HDF5.HDF5BitsKind))...)}
 
 h5fieldtype(parent::JldFile, T::BitsKindTypes, ::Bool) =
     h5type(parent, T, false)
