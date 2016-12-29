@@ -83,7 +83,7 @@ function close(f::JldFile)
         if f.writeheader
             magic = zeros(UInt8, 512)
             tmp = string(magic_base, f.version)
-            magic[1:length(tmp)] = tmp.data
+            magic[1:length(tmp)] = Vector{UInt8}(tmp)
             rawfid = open(f.plain.filename, "r+")
             write(rawfid, magic)
             close(rawfid)
@@ -134,7 +134,7 @@ function jldopen(filename::AbstractString, rd::Bool, wr::Bool, cr::Bool, tr::Boo
             finally
                 close(rawfid)
             end
-            if startswith(magic, magic_base.data)
+            if startswith(magic, Vector{UInt8}(magic_base))
                 f = HDF5.h5f_open(filename, wr ? HDF5.H5F_ACC_RDWR : HDF5.H5F_ACC_RDONLY, pa.id)
                 version = unsafe_string(pointer(magic) + length(magic_base))
                 fj = JldFile(HDF5File(f, filename), version, true, true, mmaparrays)
