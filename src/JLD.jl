@@ -873,12 +873,55 @@ writeas(gr::GlobalRef) = GlobalRefSerializer(gr)
 
 ### Converting attribute strings to Julia types
 
+const _where_macrocall = Symbol("@where")
+function expand_where_macro(e::Expr)
+    if TYPESYSTEM_06
+        e.head = :where
+        shift!(e.args)
+    else
+        e.head = :let
+        tv = e.args[2]
+        if isa(tv, Symbol)
+            sym = tv
+            tv = :(TypeVar($sym))
+        elseif isa(tv, Expr)
+            if tv.head === :comparison
+                lb = tv.args[1]
+                sym = tv.args[3]
+                ub = tv.args[5]
+                tv = :(TypeVar($sym, $lb, $ub))
+            elseif tv.head === :(<:)
+                sym = tv.args[1]
+                ub = tv.args[2]
+                tv = :(TypeVar($sym, $ub))
+            else
+                return false
+            end
+        else
+            return false
+        end
+        e.args[2] = Expr(:(=), sym, tv)
+    end
+    return true
+end
+
 is_valid_type_ex(s::Symbol) = true
 is_valid_type_ex(s::QuoteNode) = true
 is_valid_type_ex{T}(::T) = isbits(T)
-is_valid_type_ex(e::Expr) = (((e.head == :curly || e.head == :tuple || e.head == :.) && all(is_valid_type_ex, e.args)) ||
-                             (e.head == :where && is_valid_type_ex(e.args[1])) ||
-                             (e.head == :call && (e.args[1] == :Union || e.args[1] == :TypeVar || e.args[1] == :symbol)))
+function is_valid_type_ex(e::Expr)
+    if e.head === :curly || e.head == :tuple || e.head == :.
+        return all(is_valid_type_ex, e.args)
+    elseif e.head === :where
+        return is_valid_type_ex(e.args[1])
+    elseif e.head === :let && length(e.args) == 2
+        return is_valid_type_ex(e.args[1]) &&
+               is_valid_type_ex(e.args[2].args[2])
+    elseif e.head == :call
+        f = e.args[1]
+        return f === :Union || f === :TypeVar || f === :symbol
+    end
+    return false
+end
 
 const typemap_Core = Dict(
     :Uint8 => :UInt8,
@@ -891,45 +934,44 @@ const typemap_Core = Dict(
 const _typedict = Dict{Compat.UTF8String,Type}()
 
 fixtypes(typ) = typ
-@eval begin
-    function fixtypes(typ::Expr)
-        if typ.head == :.
-            if length(typ.args) == 2 && typ.args[1] == :Core
-                arg = typ.args[2].value
-                return Expr(:., :Core, QuoteNode(get(typemap_Core, arg, arg)))
-            else
-                return typ
-            end
-        elseif typ == :(Core.Type{TypeVar(:T,Union(Core.Any,Core.Undef))}) || typ == :(Core.Type{TypeVar(:T)})
-            # Work around https://github.com/JuliaLang/julia/issues/8226 and the removal of Top
-            return :(Core.Type)
-        end
-
-        for i = 1:length(typ.args)
-            typ.args[i] = fixtypes(typ.args[i])
-        end
-
-        if (typ.head == :call && !isempty(typ.args) &&
-            typ.args[1] == :Union)
-            return Expr(:curly, typ.args...)
-        end
-
-        if typ.head == :tuple
-            return Expr(:curly, :Tuple, typ.args...)
-        end
-        typ
+function fixtypes(typ::Expr)
+    if typ.head === :macrocall && typ.args[1] === _where_macrocall
+        expand_where_macro(typ)
     end
+    if typ.head === :.
+        if length(typ.args) == 2 && typ.args[1] === :Core
+            arg = typ.args[2].value
+            return Expr(:., :Core, QuoteNode(get(typemap_Core, arg, arg)))
+        else
+            return typ
+        end
+    elseif typ == :(Core.Type{TypeVar(:T,Union(Core.Any,Core.Undef))}) || typ == :(Core.Type{TypeVar(:T)})
+        # Work around https://github.com/JuliaLang/julia/issues/8226 and the removal of Top
+        return :(Core.Type)
+    end
+
+    for i = 1:length(typ.args)
+        typ.args[i] = fixtypes(typ.args[i])
+    end
+
+    if (typ.head === :call && !isempty(typ.args) &&
+        typ.args[1] === :Union)
+        return Expr(:curly, typ.args...)
+    end
+
+    if typ.head === :tuple
+        return Expr(:curly, :Tuple, typ.args...)
+    end
+    return typ
 end
 
 function _julia_type(s::AbstractString)
     typ = get(_typedict, s, UnconvertedType)
     if typ == UnconvertedType
-        local sp
-        try
-            sp = parse(s)
-        catch err
+        sp = parse(s, raise=false)
+        if (isa(sp, Expr) && (sp.head == :error || sp.head == :continue || sp.head == :incomplete))
             println("error parsing type string ", s)
-            rethrow(err)
+            eval(sp)
         end
         typ = julia_type(fixtypes(sp))
         if typ != UnsupportedType
@@ -975,12 +1017,14 @@ function full_typename(io::IO, file::JldFile, x::Core.BottomType)
     print(io, "Union()")
 end
 function full_typename(io::IO, file::JldFile, x::UnionAll)
+    x == Type && return print(io, "Type")
+    print(io, "@where(")
     full_typename(io, file, x.body)
-    print(io, " where ")
+    print(io, ',')
     tv = x.var
-    if is(tv.lb, Union{}) && is(tv.ub, Any)
+    if tv.lb === Union{} && tv.ub === Any
         print(io, tv.name)
-    elseif is(tv.lb, Union{})
+    elseif tv.lb === Union{}
         print(io, tv.name)
         print(io, "<:")
         full_typename(io, file, tv.ub)
@@ -991,6 +1035,7 @@ function full_typename(io::IO, file::JldFile, x::UnionAll)
         print(io, "<:")
         full_typename(io, file, tv.ub)
     end
+    print(io, ')')
 end
 function full_typename(io::IO, file::JldFile, tv::TypeVar)
     print(io, tv.name)

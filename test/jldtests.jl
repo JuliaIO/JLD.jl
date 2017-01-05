@@ -87,14 +87,14 @@ end
 objwithpointer = ObjWithPointer(0)
 # Custom BitsType (#99)
 bitstype 64 MyBT
-bt = reinterpret(MyBT, @compat Int64(55))
+bt = reinterpret(MyBT, Int64(55))
 # Symbol arrays (#100)
 sa_asc = [:a, :b]
 sa_utf8 = [:α, :β]
 # SubArray (to test tuple type params)
 subarray = view([1:5;], 1:5)
 # Array of empty tuples (to test tuple type params)
-arr_empty_tuple = (@compat Tuple{})[]
+arr_empty_tuple = (Tuple{})[]
 immutable EmptyImmutable end
 emptyimmutable = EmptyImmutable()
 arr_emptyimmutable = [emptyimmutable]
@@ -155,17 +155,23 @@ immutable Vague
 end
 vague = Vague(7)
 # Immutable with a union of BitsTypes
-@compat immutable BitsUnion
+immutable BitsUnion
     x::Union{Int64, Float64}
 end
 bitsunion = BitsUnion(5.0)
 # Immutable with a union of Types
-@compat immutable TypeUnionField
-    x::Union{Type{Int64}, Type{Float64}}
+let UT = if JLD.TYPESYSTEM_06
+             eval(parse("Type{T} where T <: Union{Int64, Float64}"))
+         else
+             Union{Type{Int64}, Type{Float64}}
+         end
+    @eval immutable TypeUnionField
+        x::$UT
+    end
 end
 typeunionfield = TypeUnionField(Int64)
 # Generic union type field
-@compat immutable GenericUnionField
+immutable GenericUnionField
     x::Union{Vector{Int},Int}
 end
 genericunionfield = GenericUnionField(1)
@@ -199,11 +205,11 @@ bigdata = [1:10000;]
 bigints = big(3).^(1:100)
 bigfloats = big(3.2).^(1:100)
 # None
-@compat none = Union{}
-@compat nonearr = Array(Union{}, 5)
+none = Union{}
+nonearr = Array(Union{}, 5)
 # nothing/Void
 scalar_nothing = nothing
-@compat vector_nothing = Union{Int,Void}[1,nothing]
+vector_nothing = Union{Int,Void}[1,nothing]
 
 # some data big enough to ensure that compression is used:
 Abig = kron(eye(10), rand(20,20))
@@ -217,7 +223,7 @@ bitsparambool   = BitsParams{true}()
 bitsparamsymbol = BitsParams{:x}()
 bitsparamint    = BitsParams{1}()
 bitsparamuint   = BitsParams{0x01}()
-bitsparamint16  = BitsParams{@compat Int16(1)}()
+bitsparamint16  = BitsParams{Int16(1)}()
 
 # Tuple of tuples
 tuple_of_tuples = (1, 2, (3, 4, [5, 6]), [7, 8])
@@ -237,7 +243,7 @@ natyperef = Any[NALikeType(), NALikeType()]
 iseq(x,y) = isequal(x,y)
 iseq(x::MyStruct, y::MyStruct) = (x.len == y.len && x.data == y.data)
 iseq(x::MyImmutable, y::MyImmutable) = (isequal(x.x, y.x) && isequal(x.y, y.y) && isequal(x.z, y.z))
-@compat iseq(x::Union{EmptyTI, EmptyTT}, y::Union{EmptyTI, EmptyTT}) = isequal(x.x, y.x)
+iseq(x::Union{EmptyTI, EmptyTT}, y::Union{EmptyTI, EmptyTT}) = isequal(x.x, y.x)
 iseq(c1::Array{Base.Sys.CPUinfo}, c2::Array{Base.Sys.CPUinfo}) = length(c1) == length(c2) && all([iseq(c1[i], c2[i]) for i = 1:length(c1)])
 function iseq(c1::Base.Sys.CPUinfo, c2::Base.Sys.CPUinfo)
     for n in fieldnames(Base.Sys.CPUinfo)
@@ -248,7 +254,7 @@ function iseq(c1::Base.Sys.CPUinfo, c2::Base.Sys.CPUinfo)
     true
 end
 iseq(x::MyUnicodeStruct☺, y::MyUnicodeStruct☺) = (x.α == y.α && x.∂ₓα == y.∂ₓα)
-@compat iseq(x::Array{Union{}}, y::Array{Union{}}) = size(x) == size(y)
+iseq(x::Array{Union{}}, y::Array{Union{}}) = size(x) == size(y)
 macro check(fid, sym)
     ex = quote
         let tmp
@@ -712,9 +718,9 @@ for compatible in (false, true), compress in (false, true)
     end
 
     # Issue #106
-    save(fn, "i106", Mod106.typ(@compat(Int64(1)), Mod106.UnexportedT), compress=compress)
+    save(fn, "i106", Mod106.typ(Int64(1), Mod106.UnexportedT), compress=compress)
     i106 = load(fn, "i106")
-    @assert i106 == Mod106.typ(@compat(Int64(1)), Mod106.UnexportedT)
+    @assert i106 == Mod106.typ(Int64(1), Mod106.UnexportedT)
 
     # bracket syntax for datasets
     jldopen(fn, "w", compatible=compatible, compress=compress) do file
