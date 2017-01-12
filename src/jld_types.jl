@@ -34,8 +34,8 @@ end
 
 # Get information about the HDF5 types corresponding to Julia types
 function JldTypeInfo(parent::JldFile, types::TypesType, commit::Bool)
-    dtypes = Array{JldDatatype}(length(types))
-    offsets = Array{Int}(length(types))
+    dtypes = Vector{JldDatatype}(length(types))
+    offsets = Vector{Int}(length(types))
     offset = 0
     for i = 1:length(types)
         dtype = dtypes[i] = h5fieldtype(parent, types[i], commit)
@@ -773,8 +773,8 @@ function reconstruct_type(parent::JldFile, dtype::HDF5Datatype, savedname::Abstr
     else
         # Figure out field names and types
         nfields = HDF5.h5t_get_nmembers(dtype.id)
-        fieldnames = Array{Symbol}(nfields)
-        fieldtypes = Array{Type}(nfields)
+        fieldnames = Vector{Symbol}(nfields)
+        fieldtypes = Vector{Type}(nfields)
         for i = 1:nfields
             membername = HDF5.h5t_get_member_name(dtype.id, i-1)
             idx = rsearchindex(membername, "_")

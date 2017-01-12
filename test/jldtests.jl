@@ -73,8 +73,8 @@ typevar_lb = Vector{TypeVar(:U, Integer)}[[1]]
 typevar_ub = Vector{TypeVar(:U, Int, Any)}[[1]]
 typevar_lb_ub = Vector{TypeVar(:U, Int, Real)}[[1]]
 end
-undef = Array{Any}(1)
-undefs = Array{Any}(2, 2)
+undef = Vector{Any}(1)
+undefs = Matrix{Any}(2, 2)
 ms_undef = MyStruct(0)
 # Unexported type:
 cpus = Base.Sys.cpu_info()
@@ -196,9 +196,9 @@ end
 padding_test = PaddingTest[PaddingTest(i, i) for i = 1:8]
 # Empty arrays of various types and sizes
 empty_arr_1 = Int[]
-empty_arr_2 = Array{Int}(56, 0)
+empty_arr_2 = Matrix{Int}(56, 0)
 empty_arr_3 = Any[]
-empty_arr_4 = Array{Any}(0, 97)
+empty_arr_4 = Matrix{Any}(0, 97)
 # Moderately big dataset (which will be mmapped)
 bigdata = [1:10000;]
 # BigFloats and BigInts
@@ -206,7 +206,7 @@ bigints = big(3).^(1:100)
 bigfloats = big(3.2).^(1:100)
 # None
 none = Union{}
-nonearr = Array{Union{}}(5)
+nonearr = Vector{Union{}}(5)
 # nothing/Void
 scalar_nothing = nothing
 vector_nothing = Union{Int,Void}[1,nothing]

@@ -203,7 +203,7 @@ function jldopen(filename::AbstractString, rd::Bool, wr::Bool, cr::Bool, tr::Boo
             if sz < 512
                 error("File size indicates $filename cannot be a Julia data file")
             end
-            magic = Array{UInt8}(512)
+            magic = Vector{UInt8}(512)
             rawfid = open(filename, "r")
             try
                 magic = read!(rawfid, magic)
@@ -408,7 +408,7 @@ end
 read_scalar{T<:BitsKindOrString}(obj::JldDataset, dtype::HDF5Datatype, ::Type{T}) =
     read(obj.plain, T)
 function read_scalar(obj::JldDataset, dtype::HDF5Datatype, T::Type)
-    buf = Array{UInt8}(sizeof(dtype))
+    buf = Vector{UInt8}(sizeof(dtype))
     HDF5.readarray(obj.plain, dtype.id, buf)
     return readas(jlconvert(T, file(obj), pointer(buf)))
 end
@@ -448,7 +448,7 @@ function read_vals(obj::JldDataset, dtype::HDF5Datatype, T::Type, dspace_id::HDF
     # Read from file
     n = prod(dims)
     h5sz = sizeof(dtype)
-    buf = Array{UInt8}(h5sz*n)
+    buf = Vector{UInt8}(h5sz*n)
     HDF5.h5d_read(obj.plain.id, dtype.id, dspace_id, dsel_id, HDF5.H5P_DEFAULT, buf)
 
     f = file(obj)
@@ -572,7 +572,7 @@ end
     f = file(parent)
     dtype = h5fieldtype(f, T, true)
     buf = h5convert_array(f, data, dtype, wsession)
-    dims = convert(Array{HDF5.Hsize, 1}, [reverse(size(data))...])
+    dims = convert(Vector{HDF5.Hsize}, [reverse(size(data))...])
     dspace = dataspace(data)
     chunk = HDF5.heuristic_chunk(dtype, size(data))
     dprop, dprop_close = dset_create_properties(parent, sizeof(buf),buf, chunk; kargs...)
@@ -605,7 +605,7 @@ end
 function h5convert_array(f::JldFile, data::Array,
                          dtype::JldDatatype, wsession::JldWriteSession)
     if dtype == JLD_REF_TYPE
-        refs = Array{HDF5ReferenceObj}(length(data))
+        refs = Vector{HDF5ReferenceObj}(length(data))
         for i = 1:length(data)
             if isassigned(data, i)
                 refs[i] = write_ref(f, data[i], wsession)
@@ -633,7 +633,7 @@ function _h5convert_vals(f::JldFile, data::Array,
                          dtype::JldDatatype, wsession::JldWriteSession)
     sz = HDF5.h5t_get_size(dtype)
     n = length(data)
-    buf = Array{UInt8}(sz*n)
+    buf = Vector{UInt8}(sz*n)
     offset = pointer(buf)
     for i = 1:n
         h5convert!(offset, f, data[i], wsession)
@@ -705,7 +705,7 @@ end
     dtype = h5type(f, T, true)
     gen_h5convert(f, T)
 
-    buf = Array{UInt8}(HDF5.h5t_get_size(dtype))
+    buf = Vector{UInt8}(HDF5.h5t_get_size(dtype))
     h5convert!(pointer(buf), file(parent), s, wsession)
 
     dspace = HDF5Dataspace(HDF5.h5s_create(HDF5.H5S_SCALAR))
@@ -821,8 +821,8 @@ end
 
 function convert{K,V,T}(::Type{AssociativeWrapper{K,V,T}}, d::Associative)
     n = length(d)
-    ks = Array{K}(n)
-    vs = Array{V}(n)
+    ks = Vector{K}(n)
+    vs = Vector{V}(n)
     i = 0
     for (k,v) in d
         ks[i+=1] = k
@@ -1115,7 +1115,7 @@ function full_typename(io::IO, file::JldFile, jltype::DataType)
     end
 end
 function full_typename(file::JldFile, x)
-    io = IOBuffer(Array{UInt8}(64), true, true)
+    io = IOBuffer(Vector{UInt8}(64), true, true)
     truncate(io, 0)
     full_typename(io, file, x)
     String(take!(io))
@@ -1152,7 +1152,7 @@ end
 macro save(filename, vars...)
     if isempty(vars)
         # Save all variables in the current module
-        writeexprs = Array{Expr}(0)
+        writeexprs = Vector{Expr}(0)
         m = current_module()
         for vname in names(m)
             s = string(vname)
@@ -1164,7 +1164,7 @@ macro save(filename, vars...)
             end
         end
     else
-        writeexprs = Array{Expr}(length(vars))
+        writeexprs = Vector{Expr}(length(vars))
         for i = 1:length(vars)
             writeexprs[i] = :(write(f, $(string(vars[i])), $(esc(vars[i])), wsession))
         end
@@ -1310,7 +1310,7 @@ export
     translate,
     truncate_module_path
 
-const _runtime_properties = Array{HDF5.HDF5Properties}(1)
+const _runtime_properties = Vector{HDF5.HDF5Properties}(1)
 compact_properties() = _runtime_properties[1]
 
 function __init__()
