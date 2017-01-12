@@ -127,7 +127,7 @@ function jldopen(filename::AbstractString, rd::Bool, wr::Bool, cr::Bool, tr::Boo
             if sz < 512
                 error("File size indicates $filename cannot be a Julia data file")
             end
-            magic = Array(UInt8, 512)
+            magic = Array{UInt8}(512)
             rawfid = open(filename, "r")
             try
                 magic = read!(rawfid, magic)
@@ -447,7 +447,7 @@ function read(obj::JldDataset, T::DataType)
     # Add the parameters
     if exists(obj, "TypeParameters")
         params = a_read(obj.plain, "TypeParameters")
-        p = Array(Any, length(params))
+        p = Array{Any}(length(params))
         for i = 1:length(params)
             p[i] = eval(current_module(), parse(params[i]))
         end
@@ -483,7 +483,7 @@ end
 # Read an array of references
 function getrefs{T}(obj::JldDataset, ::Type{T})
     refs = read(obj.plain, Array{HDF5ReferenceObj})
-    out = Array(T, size(refs))
+    out = Array{T}(size(refs))
     f = file(obj)
     for i = 1:length(refs)
         if refs[i] != HDF5.HDF5ReferenceObj_NULL
@@ -511,7 +511,7 @@ end
             close(ref)
         end
     else
-        out = Array(T, size(refs))
+        out = Array{T}(size(refs))
         for i = 1:length(refs)
             ref = f[refs[i]]
             try
@@ -643,7 +643,7 @@ end
     grefname = name(gref)
     try
         # Write the items to the reference group
-        refs = Array(HDF5ReferenceObj, size(data)...)
+        refs = Array{HDF5ReferenceObj}(size(data)...)
         # pad with zeros to keep in order
         nd = ndigits(length(data))
         z = "0"
@@ -691,8 +691,8 @@ end
     end
     n = length(d)
     T = eltype(d)
-    ks = Array(T[1], n)
-    vs = Array(T[2], n)
+    ks = Array{T[1]}(n)
+    vs = Array{T[2]}(n)
     i = 0
     for (k,v) in d
         ks[i+=1] = k
@@ -743,7 +743,7 @@ end
         if !exists(gtypes, Tname)
             # Write names to a dataset, so that other languages reading this file can
             # at least create a sensible dict
-            nametype = Array(String, 2, length(n))
+            nametype = Array{String}(2, length(n))
             t = T.types
             for i = 1:length(n)
                 nametype[1, i] = string(n[i])
@@ -765,7 +765,7 @@ end
         close(gtypes)
     end
     # Write the data
-    v = Array(Any, length(n))
+    v = Array{Any}(length(n))
     for i = 1:length(v)
         if isdefined(s, n[i])
             v[i] = getfield(s, n[i])
@@ -1027,7 +1027,7 @@ end
 macro save(filename, vars...)
     if isempty(vars)
         # Save all variables in the current module
-        writeexprs = Array(Expr, 0)
+        writeexprs = Array{Expr}(0)
         m = current_module()
         for vname in names(m)
             s = string(vname)
@@ -1039,7 +1039,7 @@ macro save(filename, vars...)
             end
         end
     else
-        writeexprs = Array(Expr, length(vars))
+        writeexprs = Array{Expr}(length(vars))
         for i = 1:length(vars)
             writeexprs[i] = :(write(f, $(string(vars[i])), $(esc(vars[i]))))
         end
@@ -1056,8 +1056,8 @@ macro load(filename, vars...)
             filename = eval(current_module(), filename)
         end
         # Load all variables in the top level of the file
-        readexprs = Array(Expr, 0)
-        vars = Array(Expr, 0)
+        readexprs = Array{Expr}(0)
+        vars = Array{Expr}(0)
         f = jldopen(filename)
         nms = names(f)
         for n in nms
@@ -1074,7 +1074,7 @@ macro load(filename, vars...)
                          :(close($f))),
                     Symbol[v.args[1] for v in vars]) # "unescape" vars
     else
-        readexprs = Array(Expr, length(vars))
+        readexprs = Array{Expr}(length(vars))
         for i = 1:length(vars)
             readexprs[i] = :($(esc(vars[i])) = read(f, $(string(vars[i]))))
         end

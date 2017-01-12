@@ -196,7 +196,7 @@ end
 padding_test = PaddingTest[PaddingTest(i, i) for i = 1:8]
 # Empty arrays of various types and sizes
 empty_arr_1 = Int[]
-empty_arr_2 = Array(Int, 56, 0)
+empty_arr_2 = Array{Int}(56, 0)
 empty_arr_3 = Any[]
 empty_arr_4 = Array{Any}(0, 97)
 # Moderately big dataset (which will be mmapped)
@@ -206,7 +206,7 @@ bigints = big(3).^(1:100)
 bigfloats = big(3.2).^(1:100)
 # None
 none = Union{}
-nonearr = Array(Union{}, 5)
+nonearr = Array{Union{}}(5)
 # nothing/Void
 scalar_nothing = nothing
 vector_nothing = Union{Int,Void}[1,nothing]
