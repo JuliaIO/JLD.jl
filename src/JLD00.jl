@@ -643,7 +643,7 @@ end
     grefname = name(gref)
     try
         # Write the items to the reference group
-        refs = Array{HDF5ReferenceObj}(size(data)...)
+        refs = Array{HDF5ReferenceObj}(size(data))
         # pad with zeros to keep in order
         nd = ndigits(length(data))
         z = "0"
