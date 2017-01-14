@@ -47,7 +47,7 @@ JLD.readas(serdata::MyContainerSerializer) =
 function JLD.writeas{T}(data::MyContainer{T})
     ids = [obj.id for obj in data.objs]
     n = length(data.objs)
-    vectors = Array(T, 5, n)
+    vectors = Matrix{T}(5, n)
     for i = 1:n
         vectors[:,i] = data.objs[i].data
     end
