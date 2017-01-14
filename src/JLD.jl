@@ -393,7 +393,8 @@ function read(obj::JldDataset)
                 T = jldatatype(file(obj), dtype)
             end
             if exists(obj, "dims")
-                return Array{T}(a_read(obj.plain, "dims"))
+                dims = a_read(obj.plain, "dims")
+                return Array{T}(dims...)
             else
                 return T[]
             end
