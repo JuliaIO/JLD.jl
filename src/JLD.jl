@@ -6,7 +6,7 @@ __precompile__()
 
 module JLD
 using HDF5, FileIO, Compat
-import Compat.String
+using Compat.String
 # Add methods to...
 import HDF5: close, dump, exists, file, getindex, setindex!, g_create, g_open, o_delete, name, names, read, write,
              HDF5ReferenceObj, HDF5BitsKind, ismmappable, readmmap
@@ -20,7 +20,7 @@ const pathrequire = "/_require"
 const pathcreator = "/_creator"
 const name_type_attr = "julia type"
 
-@compat typealias BitsKindOrString Union{HDF5BitsKind, String}
+typealias BitsKindOrString Union{HDF5BitsKind, String}
 
 if VERSION >= v"0.5.0-dev+5149"
     import Base.datatype_pointerfree
@@ -125,7 +125,7 @@ show(io::IO, e::TypeMismatchException) =
 include("jld_types.jl")
 
 file(x::JldFile) = x
-@compat file(x::Union{JldGroup, JldDataset}) = x.file
+file(x::Union{JldGroup, JldDataset}) = x.file
 
 function close(f::JldFile)
     if f.toclose
@@ -156,7 +156,7 @@ function close(f::JldFile)
     end
     nothing
 end
-@compat close(g::Union{JldGroup, JldDataset}) = close(g.plain)
+close(g::Union{JldGroup, JldDataset}) = close(g.plain)
 show(io::IO, fid::JldFile) = isvalid(fid.plain) ? print(io, "Julia data file version ", fid.version, ": ", fid.plain.filename) : print(io, "Julia data file (closed): ", fid.plain.filename)
 
 function jldopen(filename::AbstractString, rd::Bool, wr::Bool, cr::Bool, tr::Bool, ff::Bool; mmaparrays::Bool=false, compatible::Bool=false, compress::Bool=false)
@@ -292,18 +292,18 @@ function jldobject(obj_id::HDF5.Hid, parent)
     error("Invalid object type for path ", path)
 end
 
-@compat getindex(parent::Union{JldFile, JldGroup}, path::String) =
+getindex(parent::Union{JldFile, JldGroup}, path::String) =
     jldobject(HDF5.h5o_open(parent.plain.id, path), parent)
 
-@compat function getindex(parent::Union{JldFile, JldGroup, JldDataset}, r::HDF5ReferenceObj)
+function getindex(parent::Union{JldFile, JldGroup, JldDataset}, r::HDF5ReferenceObj)
     if r == HDF5.HDF5ReferenceObj_NULL; error("Reference is null"); end
     obj_id = HDF5.h5r_dereference(parent.plain.id, HDF5.H5R_OBJECT, r)
     jldobject(obj_id, parent)
 end
 
 ### "Inherited" behaviors
-@compat g_create(parent::Union{JldFile, JldGroup}, args...) = JldGroup(g_create(parent.plain, args...), file(parent))
-@compat function g_create(f::Function, parent::Union{JldFile, JldGroup}, args...)
+g_create(parent::Union{JldFile, JldGroup}, args...) = JldGroup(g_create(parent.plain, args...), file(parent))
+function g_create(f::Function, parent::Union{JldFile, JldGroup}, args...)
     g = JldGroup(g_create(parent.plain, args...), file(parent))
     try
         f(g)
@@ -311,12 +311,12 @@ end
         close(g)
     end
 end
-@compat g_open(parent::Union{JldFile, JldGroup}, args...) = JldGroup(g_open(parent.plain, args...), file(parent))
-@compat name(p::Union{JldFile, JldGroup, JldDataset}) = name(p.plain)
+g_open(parent::Union{JldFile, JldGroup}, args...) = JldGroup(g_open(parent.plain, args...), file(parent))
+name(p::Union{JldFile, JldGroup, JldDataset}) = name(p.plain)
 eltype(p::JldDataset) = eltype(p.plain)
-@compat exists(p::Union{JldFile, JldGroup, JldDataset}, path::String) = exists(p.plain, path)
-@compat root(p::Union{JldFile, JldGroup, JldDataset}) = g_open(file(p), "/")
-@compat o_delete(parent::Union{JldFile, JldGroup}, args...) = o_delete(parent.plain, args...)
+exists(p::Union{JldFile, JldGroup, JldDataset}, path::String) = exists(p.plain, path)
+root(p::Union{JldFile, JldGroup, JldDataset}) = g_open(file(p), "/")
+o_delete(parent::Union{JldFile, JldGroup}, args...) = o_delete(parent.plain, args...)
 function ensurepathsafe(path::String)
     if any([startswith(path, s) for s in (pathrefs,pathtypes,pathrequire)])
         error("$name is internal to the JLD format, use o_delete if you really want to delete it")
@@ -335,18 +335,18 @@ function delete!(g::JldGroup)
     for o in g typeof(o) == JldDataset && delete!(o) end
     o_delete(g.file,name(g))
 end
-@compat function delete!(parent::Union{JldFile, JldGroup}, path::String)
+function delete!(parent::Union{JldFile, JldGroup}, path::String)
     exists(parent, path) || error("$path does not exist in $parent")
     delete!(parent[path])
 end
-@compat delete!(parent::Union{JldFile, JldGroup}, args::Tuple{Vararg{String}}) = for a in args delete!(parent,a) end
+delete!(parent::Union{JldFile, JldGroup}, args::Tuple{Vararg{String}}) = for a in args delete!(parent,a) end
 ismmappable(obj::JldDataset) = ismmappable(obj.plain)
 readmmap(obj::JldDataset, args...) = readmmap(obj.plain, args...)
-@compat setindex!(parent::Union{JldFile, JldGroup}, val, path::String) = write(parent, path, val)
+setindex!(parent::Union{JldFile, JldGroup}, val, path::String) = write(parent, path, val)
 
-@compat start(parent::Union{JldFile, JldGroup}) = (names(parent), 1)
-@compat done(parent::Union{JldFile, JldGroup}, state) = state[2] > length(state[1])
-@compat next(parent::Union{JldFile, JldGroup}, state) = parent[state[1][state[2]]], (state[1], state[2]+1)
+start(parent::Union{JldFile, JldGroup}) = (names(parent), 1)
+done(parent::Union{JldFile, JldGroup}, state) = state[2] > length(state[1])
+next(parent::Union{JldFile, JldGroup}, state) = parent[state[1][state[2]]], (state[1], state[2]+1)
 
 
 ### Julia data file format implementation ###
@@ -354,7 +354,7 @@ readmmap(obj::JldDataset, args...) = readmmap(obj.plain, args...)
 
 ### Read ###
 
-@compat function read(parent::Union{JldFile, JldGroup}, name::String)
+function read(parent::Union{JldFile, JldGroup}, name::String)
     local val
     obj = parent[name]
     try
@@ -364,7 +364,7 @@ readmmap(obj::JldDataset, args...) = readmmap(obj.plain, args...)
     end
     readas(val)
 end
-@compat read(parent::Union{JldFile,JldGroup}, name::Symbol) = read(parent, String(string(name)))
+read(parent::Union{JldFile,JldGroup}, name::Symbol) = read(parent, String(string(name)))
 
 function read(obj::JldGroup)
     nms = names(obj)
@@ -417,7 +417,7 @@ end
 
 # Read an array
 function read_array(obj::JldDataset, dtype::HDF5Datatype, dspace_id::HDF5.Hid, dsel_id::HDF5.Hid,
-                    dims::(@compat Tuple{Vararg{Int}})=convert((@compat Tuple{Vararg{Int}}), HDF5.h5s_get_simple_extent_dims(dspace_id)[1]))
+                    dims::(Tuple{Vararg{Int}})=convert((Tuple{Vararg{Int}}), HDF5.h5s_get_simple_extent_dims(dspace_id)[1]))
     if HDF5.h5t_get_class(dtype) == HDF5.H5T_REFERENCE
         val = read_refs(obj, refarray_eltype(obj), dspace_id, dsel_id, dims)
     else
@@ -427,8 +427,8 @@ function read_array(obj::JldDataset, dtype::HDF5Datatype, dspace_id::HDF5.Hid, d
 end
 
 # Arrays of basic HDF5 kinds
-@compat function read_vals{S<:HDF5BitsKind}(obj::JldDataset, dtype::HDF5Datatype, T::Union{Type{S}, Type{Complex{S}}},
-                                    dspace_id::HDF5.Hid, dsel_id::HDF5.Hid, dims::@compat Tuple{Vararg{Int}})
+function read_vals{S<:HDF5BitsKind}(obj::JldDataset, dtype::HDF5Datatype, T::Union{Type{S}, Type{Complex{S}}},
+                                    dspace_id::HDF5.Hid, dsel_id::HDF5.Hid, dims::Tuple{Vararg{Int}})
     if obj.file.mmaparrays && HDF5.iscontiguous(obj.plain) && dsel_id == HDF5.H5S_ALL
         readmmap(obj.plain, Array{T})
     else
@@ -440,7 +440,7 @@ end
 
 # Arrays of immutables/bitstypes
 function read_vals(obj::JldDataset, dtype::HDF5Datatype, T::Type, dspace_id::HDF5.Hid,
-                   dsel_id::HDF5.Hid, dims::@compat Tuple{Vararg{Int}})
+                   dsel_id::HDF5.Hid, dims::Tuple{Vararg{Int}})
     out = Array{T}(dims)
     # Empty objects don't need to be read at all
     T.size == 0 && !T.mutable && return out
@@ -475,7 +475,7 @@ end
 
 # Arrays of references
 function read_refs{T}(obj::JldDataset, ::Type{T}, dspace_id::HDF5.Hid, dsel_id::HDF5.Hid,
-                      dims::@compat Tuple{Vararg{Int}})
+                      dims::Tuple{Vararg{Int}})
     refs = Array{HDF5ReferenceObj}(dims)
     HDF5.h5d_read(obj.plain.id, HDF5.H5T_STD_REF_OBJ, dspace_id, dsel_id, HDF5.H5P_DEFAULT, refs)
 
@@ -521,7 +521,7 @@ end
 
 ### Writing ###
 
-@compat write(parent::Union{JldFile, JldGroup}, name::String,
+write(parent::Union{JldFile, JldGroup}, name::String,
       data, wsession::JldWriteSession=JldWriteSession(); kargs...) =
     close(_write(parent, name, writeas(data), wsession; kargs...))
 
@@ -546,7 +546,7 @@ function dset_create_properties(parent, sz::Int, obj, chunk=Int[]; mmap::Bool=fa
 end
 
 # Write "basic" types
-@compat function _write{T<:Union{HDF5BitsKind, String}}(parent::Union{JldFile, JldGroup},
+function _write{T<:Union{HDF5BitsKind, String}}(parent::Union{JldFile, JldGroup},
                                                     name::String,
                                                     data::Union{T, Array{T}},
                                                     wsession::JldWriteSession; kargs...)
@@ -566,7 +566,7 @@ end
 end
 
 # General array types
-@compat function _write{T}(parent::Union{JldFile, JldGroup},
+function _write{T}(parent::Union{JldFile, JldGroup},
                    path::String, data::Array{T},
                    wsession::JldWriteSession; kargs...)
     f = file(parent)
@@ -594,7 +594,7 @@ end
 end
 
 # Dispatch correct method for Array{Union{}}
-@compat _write(parent::Union{JldFile, JldGroup}, path::String, data::Array{Union{}},
+_write(parent::Union{JldFile, JldGroup}, path::String, data::Array{Union{}},
        wsession::JldWriteSession; kargs...) =
     # Keyword arguments do not currently work
     invoke(_write, Tuple{Union{JldFile, JldGroup},String,Array,JldWriteSession}, parent,
@@ -678,7 +678,7 @@ write_ref(parent::JldGroup, data, wsession::JldWriteSession) =
     write_ref(file(parent), data, wsession)
 
 # Expressions, drop line numbers
-@compat function _write(parent::Union{JldFile, JldGroup},
+function _write(parent::Union{JldFile, JldGroup},
                 name::String, ex::Expr,
                 wsession::JldWriteSession; kargs...)
     args = ex.args
@@ -695,10 +695,10 @@ write_ref(parent::JldGroup, data, wsession::JldWriteSession) =
 end
 
 # Generic (tuples, immutables, and compound types)
-@compat _write(parent::Union{JldFile, JldGroup}, name::String, s,
+_write(parent::Union{JldFile, JldGroup}, name::String, s,
       wsession::JldWriteSession; kargs...) =
     write_compound(parent, name, s, wsession)
-@compat function write_compound(parent::Union{JldFile, JldGroup}, name::String,
+function write_compound(parent::Union{JldFile, JldGroup}, name::String,
                         s, wsession::JldWriteSession; kargs...)
     T = typeof(s)
     f = file(parent)
@@ -728,7 +728,7 @@ endof(dset::JldDataset) = length(dset)
 ndims(dset::JldDataset) = ndims(dset.plain)
 
 ### Read/write via getindex/setindex! ###
-@compat function getindex(dset::JldDataset, indices::Union{Range{Int},Integer}...)
+function getindex(dset::JldDataset, indices::Union{Range{Int},Integer}...)
     sz = map(length, indices)
     dsel_id = HDF5.hyperslab(dset.plain, indices...)
     try
@@ -743,7 +743,7 @@ ndims(dset::JldDataset) = ndims(dset.plain)
     end
 end
 
-@compat function setindex!{T,N}(dset::JldDataset, X::AbstractArray{T,N}, indices::Union{Range{Int},Integer}...)
+function setindex!{T,N}(dset::JldDataset, X::AbstractArray{T,N}, indices::Union{Range{Int},Integer}...)
     f = file(dset)
     sz = map(length, indices)
     dsel_id = HDF5.hyperslab(dset.plain, indices...)
@@ -775,14 +775,14 @@ end
         HDF5.h5s_close(dsel_id)
     end
 end
-@compat function setindex!(dset::JldDataset, x::Number, indices::Union{Range{Int},Integer}...)
+function setindex!(dset::JldDataset, x::Number, indices::Union{Range{Int},Integer}...)
     setindex!(dset, fill(x, map(length, indices)), indices...)
 end
 
-@compat getindex(dset::JldDataset, I::Union{Range{Int},Integer,Colon}...) = getindex(dset, ntuple(i-> isa(I[i], Colon) ? (1:size(dset,i)) : I[i], length(I))...)
-@compat setindex!(dset::JldDataset, x, I::Union{Range{Int},Integer,Colon}...) = setindex!(dset, x, ntuple(i-> isa(I[i], Colon) ? (1:size(dset,i)) : I[i], length(I))...)
+getindex(dset::JldDataset, I::Union{Range{Int},Integer,Colon}...) = getindex(dset, ntuple(i-> isa(I[i], Colon) ? (1:size(dset,i)) : I[i], length(I))...)
+setindex!(dset::JldDataset, x, I::Union{Range{Int},Integer,Colon}...) = setindex!(dset, x, ntuple(i-> isa(I[i], Colon) ? (1:size(dset,i)) : I[i], length(I))...)
 
-@compat length(x::Union{JldFile, JldGroup}) = length(names(x))
+length(x::Union{JldFile, JldGroup}) = length(names(x))
 
 ### Custom serialization
 
@@ -981,7 +981,7 @@ function _julia_type(s::AbstractString)
     typ
 end
 
-@compat function julia_type(e::Union{Symbol, Expr})
+function julia_type(e::Union{Symbol, Expr})
     if is_valid_type_ex(e)
         try # `try` needed to catch undefined symbols
             typ = eval(current_module(), e)
@@ -1042,7 +1042,7 @@ function full_typename(io::IO, file::JldFile, tv::TypeVar)
 end
 else
 function full_typename(io::IO, file::JldFile, tv::TypeVar)
-    @compat if tv.lb === Union{} && tv.ub === Any
+    if tv.lb === Union{} && tv.ub === Any
         print(io, "TypeVar(:", tv.name, ")")
     elseif tv.lb === Union{}
         print(io, "TypeVar(:", tv.name, ",")
@@ -1125,7 +1125,7 @@ function truncate_module_path(file::JldFile, mod::Module)
     push!(file.truncatemodules, string(mod))
 end
 
-@compat function names(parent::Union{JldFile, JldGroup})
+function names(parent::Union{JldFile, JldGroup})
     n = names(parent.plain)
     keep = trues(length(n))
     const reserved = [pathrefs[2:end], pathtypes[2:end], pathrequire[2:end], pathcreator[2:end]]
@@ -1234,7 +1234,7 @@ function FileIO.save(f::File{format"JLD"}, dict::Associative; compatible::Bool=f
 end
 # Or the names and values may be specified as alternating pairs
 function FileIO.save(f::File{format"JLD"}, name::AbstractString, value, pairs...; compatible::Bool=false, compress::Bool=false)
-    if isodd(length(pairs)) || !isa(pairs[1:2:end], @compat Tuple{Vararg{AbstractString}})
+    if isodd(length(pairs)) || !isa(pairs[1:2:end], Tuple{Vararg{AbstractString}})
         throw(ArgumentError("arguments must be in name-value pairs"))
     end
     jldopen(FileIO.filename(f), "w"; compatible=compatible, compress=compress) do file
@@ -1260,7 +1260,7 @@ function FileIO.load(f::File{format"JLD"}, varname::AbstractString)
     end
 end
 FileIO.load(f::File{format"JLD"}, varnames::AbstractString...) = load(f, varnames)
-function FileIO.load(f::File{format"JLD"}, varnames::@compat Tuple{Vararg{AbstractString}})
+function FileIO.load(f::File{format"JLD"}, varnames::Tuple{Vararg{AbstractString}})
     jldopen(FileIO.filename(f), "r") do file
         map((var)->read(file, var), varnames)
     end

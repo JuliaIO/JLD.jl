@@ -126,7 +126,7 @@ else
 end
 
 # This construction prevents these methods from getting called on type unions
-@compat @eval typealias BitsKindTypes Union{$(map(x->Type{x}, uniontypes(HDF5.HDF5BitsKind))...)}
+@eval typealias BitsKindTypes Union{$(map(x->Type{x}, uniontypes(HDF5.HDF5BitsKind))...)}
 
 h5fieldtype(parent::JldFile, T::BitsKindTypes, ::Bool) =
     h5type(parent, T, false)
@@ -169,14 +169,14 @@ h5convert!(out::Ptr, ::JldFile, x::String, ::JldWriteSession) =
     unsafe_store!(convert(Ptr{Ptr{UInt8}}, out), pointer(x))
 
 if !(isdefined(Core, :String) && isdefined(Core, :AbstractString))
-    @compat function jlconvert(T::Union{Type{Compat.ASCIIString},Type{Compat.UTF8String}}, ::JldFile, ptr::Ptr)
+    function jlconvert(T::Union{Type{Compat.ASCIIString},Type{Compat.UTF8String}}, ::JldFile, ptr::Ptr)
         strptr = unsafe_load(convert(Ptr{Ptr{UInt8}}, ptr))
         n = Int(ccall(:strlen, Csize_t, (Ptr{UInt8},), strptr))
         T(unsafe_wrap(Array, strptr, n, true))
     end
 end
 
-@compat function jlconvert(T::Union{Type{String}}, ::JldFile, ptr::Ptr)
+function jlconvert(T::Union{Type{String}}, ::JldFile, ptr::Ptr)
     strptr = unsafe_load(convert(Ptr{Ptr{UInt8}}, ptr))
     str = unsafe_string(strptr)
     Libc.free(strptr)
@@ -232,11 +232,11 @@ jlconvert(::Type{Symbol}, file::JldFile, ptr::Ptr) = Symbol(jlconvert(Compat.UTF
 
 ## BigInts and BigFloats
 
-@compat h5fieldtype(parent::JldFile, T::Union{Type{BigInt}, Type{BigFloat}}, commit::Bool) =
+h5fieldtype(parent::JldFile, T::Union{Type{BigInt}, Type{BigFloat}}, commit::Bool) =
     h5type(parent, T, commit)
 
 # Stored as a compound type that contains a variable length string
-@compat function h5type(parent::JldFile, T::Union{Type{BigInt}, Type{BigFloat}}, commit::Bool)
+function h5type(parent::JldFile, T::Union{Type{BigInt}, Type{BigFloat}}, commit::Bool)
     haskey(parent.jlh5type, T) && return parent.jlh5type[T]
     id = HDF5.h5t_create(HDF5.H5T_COMPOUND, 8)
     HDF5.h5t_insert(id, "data_", 0, h5fieldtype(parent, Compat.ASCIIString, commit))
@@ -288,7 +288,7 @@ h5type{T<:Ptr}(parent::JldFile, ::Type{T}, ::Bool) = throw(PointerException())
 
 ## Union{}
 
-@compat h5fieldtype(parent::JldFile, ::Type{Union{}}, ::Bool) = JLD_REF_TYPE
+h5fieldtype(parent::JldFile, ::Type{Union{}}, ::Bool) = JLD_REF_TYPE
 
 ## Arrays
 
@@ -332,7 +332,7 @@ function h5type(parent::JldFile, T::TupleType, commit::Bool)
         jlddtype = commit_datatype(parent, dtype, T)
         if T == EMPTY_TUPLE_TYPE
             # to allow recovery of empty tuples, which HDF5 does not allow
-            a_write(dtype, "empty", @compat UInt8(1))
+            a_write(dtype, "empty", UInt8(1))
         end
         jlddtype
     else
@@ -377,7 +377,7 @@ function h5type(parent::JldFile, T::ANY, commit::Bool)
         jlddtype = commit_datatype(parent, dtype, T)
         if T.size == 0
             # to allow recovery of empty types, which HDF5 does not allow
-            a_write(dtype, "empty", @compat UInt8(1))
+            a_write(dtype, "empty", UInt8(1))
         end
         jlddtype
     else
@@ -767,7 +767,7 @@ function reconstruct_type(parent::JldFile, dtype::HDF5Datatype, savedname::Abstr
         if exists(dtype, "empty")
             @eval (immutable $name; end; $name)
         else
-            sz = @compat Int(HDF5.h5t_get_size(dtype.id))*8
+            sz = Int(HDF5.h5t_get_size(dtype.id))*8
             @eval (bitstype $sz $name; $name)
         end
     else

@@ -1,6 +1,6 @@
 using HDF5
 using JLD
-import DataFrames
+using DataFrames
 
 fname = joinpath(tempdir(), "mydata.jld")
 
