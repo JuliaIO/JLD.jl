@@ -431,7 +431,7 @@ function _gen_jlconvert_immutable(typeinfo::JldTypeInfo, T::ANY)
             h5offset = typeinfo.offsets[i]
             jloffset = jloffsets[i]
             obj = gensym("obj")
-            if isa(T.types[i], TupleType) && VERSION >= v"0.4.0-dev+4319" && datatype_pointerfree(T.types[i])
+            if isa(T.types[i], TupleType) && VERSION >= v"0.4.0-dev+4319" && isbits(T.types[i])
                 # We continue to store tuples as references for the sake of
                 # backwards compatibility, but on 0.4 they are now stored
                 # inline
@@ -473,7 +473,7 @@ function _gen_jlconvert_immutable!(typeinfo::JldTypeInfo, T::ANY)
             h5offset = typeinfo.offsets[i]
             jloffset = jloffsets[i]
 
-            if isa(T.types[i], TupleType) && VERSION >= v"0.4.0-dev+4319" && datatype_pointerfree(T.types[i])
+            if isa(T.types[i], TupleType) && VERSION >= v"0.4.0-dev+4319" && isbits(T.types[i])
                 # We continue to store tuples as references for the sake of
                 # backwards compatibility, but on 0.4 they are now stored
                 # inline
