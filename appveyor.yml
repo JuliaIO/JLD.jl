@@ -26,7 +26,7 @@ build_script:
 # Need to convert from shallow to complete for Pkg.clone to work
   - IF EXIST .git\shallow (git fetch --unshallow)
   - C:\projects\julia\bin\julia -F -e "versioninfo();
-      Pkg.clone(pwd(), \"JLD\"); Pkg.build(\"JLD\")"
+      Pkg.clone(pwd(), \"JLD\"); Pkg.build(\"JLD\"); Pkg.add(\"JLDArchives\"); Pkg.checkout(\"JLDArchives\")"
 
 test_script:
-  - C:\projects\julia\bin\julia -e "Pkg.test(\"JLD\")"
+  - C:\projects\julia\bin\julia -e "Pkg.test(\"JLD\"); Pkg.test(\"JLDArchives\")"
