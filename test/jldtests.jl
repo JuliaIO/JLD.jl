@@ -355,7 +355,7 @@ fn = joinpath(tempdir(),"test.jld")
 # Issue #106
 module Mod106
 bitstype 64 Typ{T}
-typ{T}(x::Int64, ::Type{T}) = Base.box(Typ{T}, Base.unbox(Int64,x))
+typ{T}(x::Int64, ::Type{T}) = reinterpret(Typ{T}, x)
 abstract UnexportedT
 end
 
