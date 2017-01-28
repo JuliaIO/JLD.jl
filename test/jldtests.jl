@@ -952,3 +952,11 @@ f2()
 @test (@eval @load $fn) == [:loadmacrotestvar1, :loadmacrotestvar2]
 @test loadmacrotestvar1 == ['a', 'b', 'c']
 @test loadmacrotestvar2 == 1
+
+# Test StackFrame by saving profile output
+@profile eigvals(randn(3,3))
+li, lidict = Profile.retrieve()
+f = tempname()*".jld"
+@save f li lidict
+@test isa(JLD.load(f)["lidict"], Dict{UInt64,Array{StackFrame,1}})
+rm(f)

@@ -871,6 +871,29 @@ end
 readas(grs::GlobalRefSerializer) = GlobalRef(eval(modname2mod(grs.mod)), grs.name)
 writeas(gr::GlobalRef) = GlobalRefSerializer(gr)
 
+# StackFrame (Null the LambdaInfo in 0.5)
+if VERSION > v"0.5.0-dev+2420"
+    if VERSION < v"0.6.0-dev.615"
+        JLD.writeas(data::StackFrame) = Base.StackFrame(
+                   data.func,
+                   data.file,
+                   data.line,
+                   Nullable{Core.LambdaInfo}(),
+                   data.from_c,
+                   data.inlined,
+                   data.pointer)
+    else # or Core.MethodInstance in 0.6
+        JLD.writeas(data::StackFrame) = Base.StackFrame(
+                   data.func,
+                   data.file,
+                   data.line,
+                   Nullable{Core.MethodInstance}(),
+                   data.from_c,
+                   data.inlined,
+                   data.pointer)
+    end
+end
+
 ### Converting attribute strings to Julia types
 
 const _where_macrocall = Symbol("@where")
