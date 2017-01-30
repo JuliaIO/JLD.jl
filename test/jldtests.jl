@@ -958,5 +958,7 @@ f2()
 li, lidict = Profile.retrieve()
 f = tempname()*".jld"
 @save f li lidict
-@test isa(JLD.load(f)["lidict"], Dict{UInt64,Array{StackFrame,1}})
+if VERSION > v"0.5.0-dev+2420" # when StackFrames were introduced
+    @test isa(JLD.load(f)["lidict"], Dict{UInt64,Array{StackFrame,1}})
+end
 rm(f)
