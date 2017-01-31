@@ -355,7 +355,7 @@ fn = joinpath(tempdir(),"test.jld")
 # Issue #106
 module Mod106
 bitstype 64 Typ{T}
-typ{T}(x::Int64, ::Type{T}) = Base.box(Typ{T}, Base.unbox(Int64,x))
+typ{T}(x::Int64, ::Type{T}) = reinterpret(Typ{T}, x)
 abstract UnexportedT
 end
 
@@ -952,3 +952,13 @@ f2()
 @test (@eval @load $fn) == [:loadmacrotestvar1, :loadmacrotestvar2]
 @test loadmacrotestvar1 == ['a', 'b', 'c']
 @test loadmacrotestvar2 == 1
+
+# Test StackFrame by saving profile output
+@profile eigvals(randn(3,3))
+li, lidict = Profile.retrieve()
+f = tempname()*".jld"
+@save f li lidict
+if VERSION > v"0.5.0-dev+2420" # when StackFrames were introduced
+    @test isa(JLD.load(f)["lidict"], Dict{UInt64,Array{StackFrame,1}})
+end
+rm(f)
