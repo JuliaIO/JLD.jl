@@ -2,6 +2,7 @@ module MyTypes
 
 import Base: ==
 export MyType, MyContainer
+using Compat
 
 ## Objects we want to save
 # data in MyType is always of length 5, and that is the basis for a more efficient serialization
@@ -9,9 +10,9 @@ immutable MyType{T}
     data::Vector{T}
     id::Int
 
-    function MyType(v::Vector{T}, id::Integer)
+    @compat function (::Type{MyType{T}}){T}(v::Vector{T}, id::Integer)
         length(v) == 5 || error("All vectors must be of length 5")
-        new(v, id)
+        new{T}(v, id)
     end
 end
 MyType{T}(v::Vector{T}, id::Integer) = MyType{T}(v, id)
