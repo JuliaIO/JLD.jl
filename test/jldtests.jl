@@ -127,7 +127,7 @@ emptyiiotherfield = EmptyIIOtherField(EmptyImmutable(), 5.0)
 type MyUnicodeStruct☺{τ}
     α::τ
     ∂ₓα::τ
-    MyUnicodeStruct☺(α::τ, ∂ₓα::τ) = new(α, ∂ₓα)
+    @compat (::Type{MyUnicodeStruct☺{τ}}){τ}(α::τ, ∂ₓα::τ) = new{τ}(α, ∂ₓα)
 end
 unicodestruct☺ = MyUnicodeStruct☺{Float64}(1.0, -1.0)
 # Arrays of matrices (#131)
