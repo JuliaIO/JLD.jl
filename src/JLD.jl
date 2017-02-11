@@ -991,10 +991,11 @@ end
 function _julia_type(s::AbstractString)
     typ = get(_typedict, s, UnconvertedType)
     if typ == UnconvertedType
-        sp = parse(s, raise=false)
-        if (isa(sp, Expr) && (sp.head == :error || sp.head == :continue || sp.head == :incomplete))
+        sp = try
+            parse(s)
+        catch err
             println("error parsing type string ", s)
-            eval(sp)
+            rethrow(err)
         end
         typ = julia_type(fixtypes(sp))
         if typ != UnsupportedType
