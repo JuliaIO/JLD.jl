@@ -85,8 +85,8 @@ immutable ObjWithPointer
     a::Ptr{Void}
 end
 objwithpointer = ObjWithPointer(0)
-# Custom BitsType (#99)
-bitstype 64 MyBT
+# Custom PrimitiveType (#99)
+@compat primitive type MyBT 64 end
 bt = reinterpret(MyBT, Int64(55))
 # Symbol arrays (#100)
 sa_asc = [:a, :b]
@@ -216,7 +216,7 @@ Abig = kron(eye(10), rand(20,20))
 Bbig = Any[i for i=1:3000]
 Sbig = "A test string "^1000
 
-# Bitstype type parameters
+# Bits type type parameters
 type BitsParams{x}; end
 bitsparamfloat  = BitsParams{1.0}()
 bitsparambool   = BitsParams{true}()
@@ -354,9 +354,10 @@ fn = joinpath(tempdir(),"test.jld")
 
 # Issue #106
 module Mod106
-bitstype 64 Typ{T}
+using Compat: @compat
+@compat primitive type Typ{T} 64 end
 typ{T}(x::Int64, ::Type{T}) = reinterpret(Typ{T}, x)
-abstract UnexportedT
+@compat abstract type UnexportedT end
 end
 
 
@@ -799,6 +800,7 @@ end # compress in (false,true)
 
 # mismatched and missing types
 module JLDTemp1
+using Compat: @compat
 using JLD
 import ..fn, Core.Intrinsics.box
 
@@ -819,7 +821,7 @@ type TestType5
     x::TestType4
 end
 type TestType6 end
-bitstype 8 TestType7
+@compat primitive type TestType7 8 end
 immutable TestType8
     a::TestType4
     b::TestType5

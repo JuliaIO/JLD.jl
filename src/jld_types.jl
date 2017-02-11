@@ -768,7 +768,10 @@ function reconstruct_type(parent::JldFile, dtype::HDF5Datatype, savedname::Abstr
             @eval (immutable $name; end; $name)
         else
             sz = Int(HDF5.h5t_get_size(dtype.id))*8
-            @eval (bitstype $sz $name; $name)
+            # The new line between `$name` and `$sz` for the `$sz` to be parsed correctly
+            # on 0.4 and 0.5
+            @eval (@compat primitive type $name
+                   $sz end; $name)
         end
     else
         # Figure out field names and types
