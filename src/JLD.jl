@@ -20,7 +20,7 @@ const pathrequire = "/_require"
 const pathcreator = "/_creator"
 const name_type_attr = "julia type"
 
-typealias BitsKindOrString Union{HDF5BitsKind, String}
+const BitsKindOrString = Union{HDF5BitsKind, String}
 
 if VERSION >= v"0.5.0-dev+5149"
     import Base.datatype_pointerfree

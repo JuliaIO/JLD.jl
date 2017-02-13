@@ -14,8 +14,8 @@ const JLCONVERT_INFO = Dict{Any, Any}()
 const H5CONVERT_INFO = Dict{Any, Any}()
 
 const EMPTY_TUPLE_TYPE = Tuple{}
-typealias TypesType SimpleVector
-typealias TupleType{T<:Tuple} Type{T}
+const TypesType = SimpleVector
+@compat TupleType{T<:Tuple} = Type{T}
 tupletypes(T::TupleType) = T.parameters
 typetuple(types) = Tuple{types...}
 
@@ -75,7 +75,7 @@ end
 
 # If parent is nothing, we are creating the datatype in memory for
 # validation, so don't commit it
-commit_datatype(parent::@compat(Void), dtype::HDF5Datatype, T::ANY) =
+commit_datatype(parent::Void, dtype::HDF5Datatype, T::ANY) =
     JldDatatype(dtype, -1)
 
 # The HDF5 library loses track of relationships among committed types
@@ -126,7 +126,7 @@ else
 end
 
 # This construction prevents these methods from getting called on type unions
-@eval typealias BitsKindTypes Union{$(map(x->Type{x}, uniontypes(HDF5.HDF5BitsKind))...)}
+const BitsKindTypes = Union{map(x->Type{x}, uniontypes(HDF5.HDF5BitsKind))...}
 
 h5fieldtype(parent::JldFile, T::BitsKindTypes, ::Bool) =
     h5type(parent, T, false)
@@ -146,11 +146,11 @@ jlconvert!(out::Ptr, T::BitsKindTypes, ::JldFile, ptr::Ptr) = _jlconvert_bits!(o
 
 ## Void/Nothing
 
-typealias VoidType Type{@compat(Void)}
+const VoidType = Type{Void}
 
 jlconvert(T::VoidType, ::JldFile, ptr::Ptr) = nothing
 jlconvert!(out::Ptr, T::VoidType, ::JldFile, ptr::Ptr) = (unsafe_store!(convert(Ptr{T}, out), nothing); nothing)
-h5convert!(out::Ptr, ::JldFile, x::@compat(Void), ::JldWriteSession) = nothing
+h5convert!(out::Ptr, ::JldFile, x::Void, ::JldWriteSession) = nothing
 
 ## Strings
 
