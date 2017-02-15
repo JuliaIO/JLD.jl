@@ -346,7 +346,7 @@ end
 readsafely(parent::Union{JldFile,JldGroup}, name::Symbol) = readsafely(parent, bytestring(string(symbol)))
 
 # Basic types
-typealias BitsKindOrString Union{HDF5BitsKind, String}
+const BitsKindOrString = Union{HDF5BitsKind, String}
 read{T<:BitsKindOrString}(obj::JldDataset, ::Type{T}) = read(obj.plain, T)
 function read{T<:HDF5BitsKind}(obj::JldDataset, ::Type{Array{T}})
     A = obj.file.mmaparrays && HDF5.iscontiguous(obj.plain) ? readmmap(obj.plain, Array{T}) : read(obj.plain, Array{T})
