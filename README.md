@@ -124,7 +124,7 @@ Note that the features of HDF5 generally can also be used on JLD files.
 You can save objects that have user-defined type; in a fresh Julia session, before loading those objects these types need to be defined. If no definition is available, the JLD module will automatically create the types for you.  However, it's important to note that `MyType`, defined automatically by JLD, is not the same `MyType` as defined in an external module---in particular, module functions will not work for types defined by JLD.  To ensure that loaded types have the full suite of behaviors provided by their definition in external modules, you should ensure that such modules are available before reading such variables from a `.jld` file.
 
 To ensure automatic loading of modules, use `addrequire` to specify any dependencies. For example, suppose you have a file `"MyTypes.jl"` somewhere on your default `LOAD_PATH`, defined this way:
-```
+```julia
 module MyTypes
 
 export MyType
@@ -137,7 +137,7 @@ end
 ```
 and you have an object `x` of type `MyType`. Then save `x` in the following way:
 
-```
+```julia
 jldopen("somedata.jld", "w") do file
     addrequire(file, MyTypes)
     write(file, "x", x)
