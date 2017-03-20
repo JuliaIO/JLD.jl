@@ -1013,7 +1013,7 @@ function full_typename(io::IO, file::JldFile, jltype::Union)
     print(io, ')')
 end
 if TYPESYSTEM_06
-function full_typename(io::IO, file::JldFile, x::Core.BottomType)
+function full_typename(io::IO, file::JldFile, x::typeof(Union{}))
     print(io, "Union()")
 end
 function full_typename(io::IO, file::JldFile, x::UnionAll)
