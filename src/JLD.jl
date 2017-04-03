@@ -1323,7 +1323,6 @@ export
     ismmappable,
     jldopen,
     o_delete,
-    plain,
     readmmap,
     readsafely,
     @load,
