@@ -961,6 +961,10 @@ li, lidict = Profile.retrieve()
 f = tempname()*".jld"
 @save f li lidict
 if VERSION > v"0.5.0-dev+2420" # when StackFrames were introduced
-    @test isa(JLD.load(f)["lidict"], Dict{UInt,Array{StackFrame,1}})
+    if VERSION < v"0.6.0-dev.384" # ref https://github.com/JuliaLang/julia/commit/60f20bd58c5ca59275b3fb18760dbbf9b9089ca8
+        @test isa(JLD.load(f)["lidict"], Dict{UInt,Array{StackFrame,1}})
+    else
+        @test isa(JLD.load(f)["lidict"], Dict{UInt64,Array{StackFrame,1}})
+    end
 end
 rm(f)
