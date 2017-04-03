@@ -24,6 +24,8 @@ long-term backwards compatibility is currently uncertain.  (The
 formats.) If you choose to save data using the serializer, please use
 the file extension `.jls` to distinguish the files from `.jld` files.
 
+**Note:** You should only read JLD files from trusted sources, as JLD files are capable of executing arbitrary code when read in.
+
 
 ## Installation
 
