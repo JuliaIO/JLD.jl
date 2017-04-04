@@ -602,7 +602,7 @@ uses_reference(::Union) = true
 
 unknown_type_err(T) =
     error("""$T is not of a type supported by JLD
-             Please report this error at https://github.com/timholy/HDF5.jl""")
+             Please report this error at https://github.com/JuliaIO/HDF5.jl""")
 
 const BUILTIN_H5_types = Union{Void, Type, String, HDF5.HDF5BitsKind, UTF16String, Symbol, BigInt, BigFloat}
 function gen_h5convert(parent::JldFile, T::ANY)
