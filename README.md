@@ -154,9 +154,9 @@ Please see the complete documentation, particularly the section about custom ser
 ## Complete documentation
 
 More extensive documentation, including information about the JLD
-format conventions, can be found in the [`doc/`](doc/) directory.
+format conventions, can be found in the [`doc`](doc/) directory.
 
-The `test/` directory contains a number of test scripts that also
+The [`test`](test/) directory contains a number of test scripts that also
 demonstrate usage.
 
 ## Credits
