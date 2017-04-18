@@ -1324,7 +1324,6 @@ export
     jldopen,
     o_delete,
     readmmap,
-    readsafely,
     @load,
     @save,
     load,
