@@ -1331,15 +1331,15 @@ export
     translate,
     truncate_module_path
 
-const _runtime_properties = Vector{HDF5.HDF5Properties}(1)
-compact_properties() = _runtime_properties[1]
+const _runtime_properties = Ref{HDF5.HDF5Properties}()
+compact_properties() = _runtime_properties[]
 
 function __init__()
     const COMPACT_PROPERTIES = p_create(HDF5.H5P_DATASET_CREATE)
     HDF5.h5p_set_layout(COMPACT_PROPERTIES.id, HDF5.H5D_COMPACT)
 
     global _runtime_properties
-    _runtime_properties[1] = COMPACT_PROPERTIES
+    _runtime_properties[] = COMPACT_PROPERTIES
 
     HDF5.rehash!(_typedict, length(_typedict.keys))
     HDF5.rehash!(BUILTIN_TYPES.dict, length(BUILTIN_TYPES.dict.keys))
