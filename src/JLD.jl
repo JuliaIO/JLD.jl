@@ -1,13 +1,9 @@
-###############################################
-## Reading and writing Julia data .jld files ##
-###############################################
-
 __precompile__()
 
 module JLD
 using HDF5, FileIO, Compat
 using Compat.String
-# Add methods to...
+
 import HDF5: close, dump, exists, file, getindex, setindex!, g_create, g_open, o_delete, name, names, read, write,
              HDF5ReferenceObj, HDF5BitsKind, ismmappable, readmmap
 import Base: convert, length, endof, show, done, next, ndims, start, delete!, eltype, size, sizeof, unsafe_convert
