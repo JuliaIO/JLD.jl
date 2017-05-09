@@ -623,8 +623,7 @@ end
 # Hack to ensure that _h5convert_vals isn't compiled before h5convert!
 function h5convert_vals(f::JldFile, data::ANY, dtype::JldDatatype,
                         wsession::JldWriteSession)
-    for i = true; end # prevents inlining
-    _h5convert_vals(f, data, dtype, wsession)
+    @noinline _h5convert_vals(f, data, dtype, wsession)
 end
 
 # Convert an array of immutables or bitstypes to a buffer representing
