@@ -623,12 +623,12 @@ end
 # Hack to ensure that _h5convert_vals isn't compiled before h5convert!
 function h5convert_vals(f::JldFile, data::ANY, dtype::JldDatatype,
                         wsession::JldWriteSession)
-    @noinline _h5convert_vals(f, data, dtype, wsession)
+    _h5convert_vals(f, data, dtype, wsession)
 end
 
 # Convert an array of immutables or bitstypes to a buffer representing
 # HDF5 compound objects. A separate function so that it is specialized.
-function _h5convert_vals(f::JldFile, data::Array,
+@noinline function _h5convert_vals(f::JldFile, data::Array,
                          dtype::JldDatatype, wsession::JldWriteSession)
     sz = HDF5.h5t_get_size(dtype)
     n = length(data)
