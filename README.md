@@ -47,7 +47,7 @@ using JLD
 If you just want to save a few variables and don't care to use the more
 advanced features, then a simple syntax is:
 
-```
+```julia
 t = 15
 z = [1,3]
 save("/tmp/myfile.jld", "t", t, "arr", z)
@@ -56,7 +56,7 @@ Here we're explicitly saving `t` and `z` as `"t"` and `"arr"` within
 `myfile.jld`. You can alternatively pass `save` a dictionary; the keys must be
 strings and are saved as the variable names of their values within the JLD
 file. You can read these variables back in with
-```
+```julia
 d = load("/tmp/myfile.jld")
 ```
 which reads the entire file into a returned dictionary `d`. Or you can be more
