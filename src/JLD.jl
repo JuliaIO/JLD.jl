@@ -1334,7 +1334,6 @@ function __init__()
     const COMPACT_PROPERTIES = p_create(HDF5.H5P_DATASET_CREATE)
     HDF5.h5p_set_layout(COMPACT_PROPERTIES.id, HDF5.H5D_COMPACT)
 
-    global _runtime_properties
     _runtime_properties[] = COMPACT_PROPERTIES
 
     HDF5.rehash!(_typedict, length(_typedict.keys))
