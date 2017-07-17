@@ -9,6 +9,8 @@ import Base: convert, length, endof, show, done, next, ndims, start, delete!, el
              size, sizeof, unsafe_convert, datatype_pointerfree
 import LegacyStrings: UTF16String
 
+@noinline gcuse(x) = x # because of use of `pointer`, need to mark gc-use end explicitly
+
 const magic_base = "Julia data file (HDF5), version "
 const version_current = v"0.1.1"
 const pathrefs = "/_refs"
@@ -196,6 +198,7 @@ function jldopen(filename::AbstractString, rd::Bool, wr::Bool, cr::Bool, tr::Boo
             end
             if startswith(magic, Vector{UInt8}(magic_base))
                 version = convert(VersionNumber, unsafe_string(pointer(magic) + length(magic_base)))
+                gcuse(magic)
                 if version < v"0.1.0"
                     if !isdefined(JLD, :JLD00)
                         eval(:(include(joinpath($(dirname(@__FILE__)), "JLD00.jl"))))
@@ -394,7 +397,9 @@ read_scalar(obj::JldDataset, dtype::HDF5Datatype, ::Type{T}) where {T<:BitsKindO
 function read_scalar(obj::JldDataset, dtype::HDF5Datatype, T::Type)
     buf = Vector{UInt8}(sizeof(dtype))
     HDF5.readarray(obj.plain, dtype.id, buf)
-    return readas(jlconvert(T, file(obj), pointer(buf)))
+    sc = readas(jlconvert(T, file(obj), pointer(buf)))
+    gcuse(buf)
+    sc
 end
 
 ## Arrays
@@ -454,6 +459,8 @@ function read_vals(obj::JldDataset, dtype::HDF5Datatype, T::Type, dspace_id::HDF
             h5offset += h5sz
         end
     end
+    gcuse(buf)
+    gcuse(out)
     out
 end
 
@@ -622,6 +629,7 @@ end
         h5convert!(offset, f, data[i], wsession)
         offset += sz
     end
+    gcuse(buf)
     buf
 end
 
@@ -690,6 +698,7 @@ function write_compound(parent::Union{JldFile, JldGroup}, name::String,
 
     buf = Vector{UInt8}(HDF5.h5t_get_size(dtype))
     h5convert!(pointer(buf), file(parent), s, wsession)
+    gcuse(buf)
 
     dspace = HDF5Dataspace(HDF5.h5s_create(HDF5.H5S_SCALAR))
     dprop, dprop_close = dset_create_properties(parent, length(buf), buf; kargs...)
