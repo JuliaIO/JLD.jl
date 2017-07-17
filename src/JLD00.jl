@@ -289,6 +289,9 @@ function read(obj::Union{JldFile, JldDataset})
             error("Type ", typename, " is not recognized. As a fallback, you can load ", name(obj), " with readsafely().")
         end
     end
+    if T == UnsupportedType
+        error("Type expression ", typename, ", is not recognized.")
+    end
     read(obj, T)
 end
 function readsafely(obj::Union{JldFile, JldDataset})
@@ -432,7 +435,7 @@ end
 
 # CompositeKind
 if JLD.TYPESYSTEM_06
-    read(obj::JldDataset, T::UnionAll) = read(obj, T.body)
+    read(obj::JldDataset, T::UnionAll) = read(obj, Base.unwrap_unionall(T))
 end
 function read(obj::JldDataset, T::DataType)
     if isempty(fieldnames(T)) && T.size > 0
@@ -442,14 +445,16 @@ function read(obj::JldDataset, T::DataType)
     # Add the parameters
     if exists(obj, "TypeParameters")
         params = a_read(obj.plain, "TypeParameters")
-        p = Vector{Any}(length(params))
-        for i = 1:length(params)
-            p[i] = eval(current_module(), parse(params[i]))
+        if !isempty(params)
+            p = Vector{Any}(length(params))
+            for i = 1:length(params)
+                p[i] = eval(current_module(), parse(params[i]))
+            end
+            if JLD.TYPESYSTEM_06
+                T = T.name.wrapper
+            end
+            T = T{p...}
         end
-        if JLD.TYPESYSTEM_06
-            T = T.name.wrapper
-        end
-        T = T{p...}
     end
     v = getrefs(obj, Any)
     if length(v) == 0
@@ -927,20 +932,15 @@ end
 
 ### Converting attribute strings to Julia types
 
-is_valid_type_ex(s::Symbol) = true
-is_valid_type_ex(s::QuoteNode) = true
-is_valid_type_ex(x::Int) = true
-is_valid_type_ex(e::Expr) = ((e.head == :curly || e.head == :tuple || e.head == :.) && all(is_valid_type_ex, e.args)) ||
-                            (e.head == :call && (e.args[1] == :Union || e.args[1] == :TypeVar))
-
 const _typedict = Dict{String,Type}()
+_typedict["CompositeKind"] = CompositeKind
 function _julia_type(s::AbstractString)
     typ = get(_typedict, s, UnconvertedType)
     if typ == UnconvertedType
         e = parse(s)
         e = JLD.fixtypes(e)
         typ = UnsupportedType
-        if is_valid_type_ex(e)
+        if JLD.is_valid_type_ex(e)
             try     # try needed to catch undefined symbols
                 typ = eval(e)
                 if !isa(typ, Type)

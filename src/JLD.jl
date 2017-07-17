@@ -30,7 +30,6 @@ end
 ### Dummy types used for converting attribute strings to Julia types
 mutable struct UnsupportedType; end
 mutable struct UnconvertedType; end
-mutable struct CompositeKind; end   # here this means "a type with fields"
 
 
 struct JldDatatype
@@ -882,7 +881,7 @@ end
 
 is_valid_type_ex(s::Symbol) = true
 is_valid_type_ex(s::QuoteNode) = true
-is_valid_type_ex(::T) where {T} = isbits(T)
+is_valid_type_ex(s) = isbits(typeof(s))
 function is_valid_type_ex(e::Expr)
     if e.head === :curly || e.head == :tuple || e.head == :.
         return all(is_valid_type_ex, e.args)
@@ -893,7 +892,14 @@ function is_valid_type_ex(e::Expr)
                is_valid_type_ex(e.args[2].args[2])
     elseif e.head == :call
         f = e.args[1]
-        return f === :Union || f === :TypeVar || f === :symbol
+        if f isa Expr
+            if f.head === :core
+                f = f.args[1]
+                return f === :Union || f === :TypeVar || f === :UnionAll
+            end
+        elseif f isa Symbol
+            return f === :Union || f === :TypeVar || f === :symbol
+        end
     end
     return false
 end
@@ -908,10 +914,19 @@ const typemap_Core = Dict(
 
 const _typedict = Dict{String,Type}()
 
-fixtypes(typ) = typ
-function fixtypes(typ::Expr)
+function fixtypes(typ)
+    whereall = []
+    typ = fixtypes(typ, whereall)
+    while !isempty(whereall)
+        var = pop!(whereall)
+        typ = Expr(:let, Expr(:call, Expr(:core, :UnionAll), var.args[1], typ), var)
+    end
+    return typ
+end
+fixtypes(typ, whereall) = typ
+function fixtypes(typ::Expr, whereall::Vector{Any})
     if typ.head === :macrocall && typ.args[1] === _where_macrocall
-        expand_where_macro(typ)
+        expand_where_macro(typ) # @where => TypeVar format forwards compatibility
     end
     if typ.head === :.
         if length(typ.args) == 2 && typ.args[1] === :Core
@@ -926,16 +941,33 @@ function fixtypes(typ::Expr)
     end
 
     for i = 1:length(typ.args)
-        typ.args[i] = fixtypes(typ.args[i])
+        typ.args[i] = fixtypes(typ.args[i], whereall)
+    end
+
+    if (typ.head === :call && !isempty(typ.args) &&
+        typ.args[1] === :TypeVar) # TypeVar => where format backwards compatibility
+        if TYPESYSTEM_06
+            tv = gensym()
+            push!(whereall, Expr(:(=), tv, typ))
+            return tv
+        end
     end
 
     if (typ.head === :call && !isempty(typ.args) &&
         typ.args[1] === :Union)
-        return Expr(:curly, typ.args...)
+        typ = Expr(:curly, typ.args...)
     end
 
     if typ.head === :tuple
-        return Expr(:curly, :Tuple, typ.args...)
+        typ = Expr(:curly, :Tuple, typ.args...)
+    end
+
+    if typ.head === :curly
+        # assume literal TypeVar should work like `T{<:S}`
+        while !isempty(whereall)
+            var = pop!(whereall)
+            typ = Expr(:let, Expr(:call, Expr(:core, :UnionAll), var.args[1], typ), var)
+        end
     end
     return typ
 end
@@ -959,13 +991,7 @@ end
 function julia_type(e::Union{Symbol, Expr})
     if is_valid_type_ex(e)
         try # `try` needed to catch undefined symbols
-            typ = eval(current_module(), e)
-            typ == Type && return Type
-            isa(typ, Type) && return typ
-        end
-        try
-            # It's possible that `e` will represent a type not present in current_module(),
-            # but as long as `e` is fully qualified, it should exist/be reachable from Main
+            # `e` should be fully qualified, and thus reachable from Main
             typ = eval(Main, e)
             typ == Type && return Type
             isa(typ, Type) && return typ
