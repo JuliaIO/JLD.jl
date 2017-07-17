@@ -879,7 +879,7 @@ JLD.writeas(data::StackFrame) =
 const _where_macrocall = Symbol("@where")
 function expand_where_macro(e::Expr)
     e.head = :where
-    shift!(e.args)
+    Compat.macros_have_sourceloc && shift!(e.args)
     return true
 end
 
