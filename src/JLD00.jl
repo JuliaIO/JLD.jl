@@ -8,7 +8,7 @@ using HDF5, Compat, LegacyStrings
 import HDF5: close, dump, exists, file, getindex, setindex!, g_create, g_open, o_delete, name, names, read, size, write,
              HDF5ReferenceObj, HDF5BitsKind, ismmappable, readmmap
 import Base: length, endof, show, done, next, start, delete!
-import JLD
+import ..JLD
 
 # See julia issue #8907
 replacements = Any[]
@@ -431,6 +431,9 @@ function read(obj::JldDataset, ::Type{Expr})
 end
 
 # CompositeKind
+if JLD.TYPESYSTEM_06
+    read(obj::JldDataset, T::UnionAll) = read(obj, T.body)
+end
 function read(obj::JldDataset, T::DataType)
     if isempty(fieldnames(T)) && T.size > 0
         return read_bitstype(obj, T)
@@ -442,6 +445,9 @@ function read(obj::JldDataset, T::DataType)
         p = Vector{Any}(length(params))
         for i = 1:length(params)
             p[i] = eval(current_module(), parse(params[i]))
+        end
+        if JLD.TYPESYSTEM_06
+            T = T.name.wrapper
         end
         T = T{p...}
     end

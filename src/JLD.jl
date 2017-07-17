@@ -200,9 +200,6 @@ function jldopen(filename::AbstractString, rd::Bool, wr::Bool, cr::Bool, tr::Boo
                 version = convert(VersionNumber, unsafe_string(pointer(magic) + length(magic_base)))
                 gcuse(magic)
                 if version < v"0.1.0"
-                    if !isdefined(JLD, :JLD00)
-                        eval(:(include(joinpath($(dirname(@__FILE__)), "JLD00.jl"))))
-                    end
                     fj = JLD00.jldopen(filename, rd, wr, cr, tr, ff; mmaparrays=mmaparrays)
                 else
                     f = HDF5.h5f_open(filename, wr ? HDF5.H5F_ACC_RDWR : HDF5.H5F_ACC_RDONLY, pa.id)
@@ -1282,4 +1279,5 @@ function __init__()
     nothing
 end
 
+include("JLD00.jl")
 end
