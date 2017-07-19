@@ -494,7 +494,7 @@ function read_refs{T}(obj::JldDataset, ::Type{T}, dspace_id::HDF5.Hid, dsel_id::
             end
             return out
         else
-            throw(e)
+            rethrow(e)
         end
     end
 end
