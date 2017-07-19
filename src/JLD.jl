@@ -475,14 +475,28 @@ function read_refs{T}(obj::JldDataset, ::Type{T}, dspace_id::HDF5.Hid, dsel_id::
     refs = Array{HDF5ReferenceObj}(dims)
     HDF5.h5d_read(obj.plain.id, HDF5.H5T_STD_REF_OBJ, dspace_id, dsel_id, HDF5.H5P_DEFAULT, refs)
 
-    out = Array{Any}(dims)
     f = file(obj)
-    for i = 1:length(refs)
-        if refs[i] != HDF5.HDF5ReferenceObj_NULL
-            out[i] = read_ref(f, refs[i])
+    try
+        out = Array{T}(dims)
+        for i = 1:length(refs)
+            if refs[i] != HDF5.HDF5ReferenceObj_NULL
+                out[i] = read_ref(f, refs[i])
+            end
+        end
+        return out
+    catch e
+        if isa(e, TypeError)
+            out = Array{Any}(dims)
+            for i = 1:length(refs)
+                if refs[i] != HDF5.HDF5ReferenceObj_NULL
+                    out[i] = read_ref(f, refs[i])
+                end
+            end
+            return out
+        else
+            throw(e)
         end
     end
-    out
 end
 
 # Get element type of a reference array
