@@ -971,7 +971,7 @@ end
 ### Converting Julia types to fully qualified names
 function full_typename(io::IO, file::JldFile, jltype::Union)
     print(io, "Union(")
-    types = uniontypes(jltype)
+    types = Base.uniontypes(jltype)
     if !isempty(types)
         full_typename(io, file, types[1])
         for i = 2:length(types)

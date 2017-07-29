@@ -120,7 +120,7 @@ emptyiiotherfield = EmptyIIOtherField(EmptyImmutable(), 5.0)
 mutable struct MyUnicodeStruct☺{τ}
     α::τ
     ∂ₓα::τ
-    @compat (::Type{MyUnicodeStruct☺{τ}}){τ}(α::τ, ∂ₓα::τ) = new{τ}(α, ∂ₓα)
+    MyUnicodeStruct☺{τ}(α::τ, ∂ₓα::τ) where {τ} = new{τ}(α, ∂ₓα)
 end
 unicodestruct☺ = MyUnicodeStruct☺{Float64}(1.0, -1.0)
 # Arrays of matrices (#131)
@@ -224,9 +224,9 @@ iseq(x::SimpleVector, y::SimpleVector) = collect(x) == collect(y)
 # Issue #243
 # Type that overloads != so that it is not boolean
 mutable struct NALikeType; end
-@compat Base.:(!=)(::NALikeType, ::NALikeType) = NALikeType()
-@compat Base.:(!=)(::NALikeType, ::Void) = NALikeType()
-@compat Base.:(!=)(::Void, ::NALikeType) = NALikeType()
+Base.:(!=)(::NALikeType, ::NALikeType) = NALikeType()
+Base.:(!=)(::NALikeType, ::Void) = NALikeType()
+Base.:(!=)(::Void, ::NALikeType) = NALikeType()
 natyperef = Any[NALikeType(), NALikeType()]
 
 # Issue #110
