@@ -2,7 +2,7 @@ module JLDTest
 
 export Object
 
-type Object
+mutable struct Object
     data::Int16
 end
 

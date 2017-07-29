@@ -1,5 +1,3 @@
-using LegacyStrings
-
 # Controls whether tuples and non-pointerfree immutables, which Julia
 # stores as references, are stored inline in compound types when
 # possible. Currently this is problematic because Julia fields of these
@@ -15,18 +13,16 @@ const H5CONVERT_INFO = Dict{Any, Any}()
 
 const EMPTY_TUPLE_TYPE = Tuple{}
 const TypesType = SimpleVector
-@compat TupleType{T<:Tuple} = Type{T}
+TupleType{T<:Tuple} = Type{T}
 tupletypes(T::TupleType) = T.parameters
 typetuple(types) = Tuple{types...}
-
-const TYPESYSTEM_06 = isdefined(Int.name, :wrapper)
 
 ## Helper functions
 
 translate(oldname::String, newname::String) = JL_TYPENAME_TRANSLATE[oldname] = newname
 
 # Holds information about the mapping between a Julia and HDF5 type
-immutable JldTypeInfo
+struct JldTypeInfo
     dtypes::Vector{JldDatatype}
     offsets::Vector{Int}
     size::Int
@@ -44,13 +40,8 @@ function JldTypeInfo(parent::JldFile, types::TypesType, commit::Bool)
     end
     JldTypeInfo(dtypes, offsets, offset)
 end
-if TYPESYSTEM_06
 JldTypeInfo(parent::JldFile, T::ANY, commit::Bool) =
     JldTypeInfo(parent, Base.unwrap_unionall(T).types, commit)
-else
-JldTypeInfo(parent::JldFile, T::ANY, commit::Bool) =
-    JldTypeInfo(parent, T.types, commit)
-end
 
 # Write an HDF5 datatype to the file
 function commit_datatype(parent::JldFile, dtype::HDF5Datatype, T::ANY)
@@ -119,14 +110,8 @@ Base.convert(::Type{HDF5.Hid}, x::JldDatatype) = x.dtype.id
 
 ## HDF5 bits kinds
 
-if TYPESYSTEM_06
-    uniontypes(t::ANY) = Base.uniontypes(t)
-else
-    uniontypes(t::ANY) = isa(t,Union) ? t.types : t
-end
-
 # This construction prevents these methods from getting called on type unions
-const BitsKindTypes = Union{map(x->Type{x}, uniontypes(HDF5.HDF5BitsKind))...}
+const BitsKindTypes = Union{map(x->Type{x}, Base.uniontypes(HDF5.HDF5BitsKind))...}
 
 h5fieldtype(parent::JldFile, T::BitsKindTypes, ::Bool) =
     h5type(parent, T, false)
@@ -134,11 +119,11 @@ h5fieldtype(parent::JldFile, T::BitsKindTypes, ::Bool) =
 h5type(::JldFile, T::BitsKindTypes, ::Bool) =
     JldDatatype(HDF5Datatype(HDF5.hdf5_type_id(T), false), 0)
 
-h5convert!{T<:HDF5.HDF5BitsKind}(out::Ptr, ::JldFile, x::T, ::JldWriteSession) =
+h5convert!(out::Ptr, ::JldFile, x::T, ::JldWriteSession) where {T<:HDF5.HDF5BitsKind} =
     unsafe_store!(convert(Ptr{T}, out), x)
 
-_jlconvert_bits{T}(::Type{T}, ptr::Ptr) = unsafe_load(convert(Ptr{T}, ptr))
-_jlconvert_bits!{T}(out::Ptr, ::Type{T}, ptr::Ptr) =
+_jlconvert_bits(::Type{T}, ptr::Ptr) where {T} = unsafe_load(convert(Ptr{T}, ptr))
+_jlconvert_bits!(out::Ptr, ::Type{T}, ptr::Ptr) where {T} =
     (unsafe_store!(convert(Ptr{T}, out), unsafe_load(convert(Ptr{T}, ptr))); nothing)
 
 jlconvert(T::BitsKindTypes, ::JldFile, ptr::Ptr) = _jlconvert_bits(T, ptr)
@@ -154,11 +139,11 @@ h5convert!(out::Ptr, ::JldFile, x::Void, ::JldWriteSession) = nothing
 
 ## Strings
 
-h5fieldtype{T<:String}(parent::JldFile, ::Type{T}, ::Bool) =
+h5fieldtype(parent::JldFile, ::Type{T}, ::Bool) where {T<:String} =
     h5type(parent, T, false)
 
 # Stored as variable-length strings
-function h5type{T<:String}(::JldFile, ::Type{T}, ::Bool)
+function h5type(::JldFile, ::Type{T}, ::Bool) where T<:String
     type_id = HDF5.h5t_copy(HDF5.hdf5_type_id(T))
     HDF5.h5t_set_size(type_id, HDF5.H5T_VARIABLE)
     HDF5.h5t_set_cset(type_id, HDF5.cset(T))
@@ -262,11 +247,11 @@ jlconvert(::Type{BigFloat}, file::JldFile, ptr::Ptr) =
 
 ## Types
 
-h5fieldtype{T<:Type}(parent::JldFile, ::Type{T}, commit::Bool) =
+h5fieldtype(parent::JldFile, ::Type{T}, commit::Bool) where {T<:Type} =
     h5type(parent, Type, commit)
 
 # Stored as a compound type that contains a variable length string
-function h5type{T<:Type}(parent::JldFile, ::Type{T}, commit::Bool)
+function h5type(parent::JldFile, ::Type{T}, commit::Bool) where T<:Type
     haskey(parent.jlh5type, Type) && return parent.jlh5type[Type]
     id = HDF5.h5t_create(HDF5.H5T_COMPOUND, 8)
     HDF5.h5t_insert(id, "typename_", 0, h5fieldtype(parent, Compat.UTF8String, commit))
@@ -280,11 +265,12 @@ function h5convert!(out::Ptr, file::JldFile, x::Type, wsession::JldWriteSession)
     h5convert!(out, file, str, wsession)
 end
 
-jlconvert{T<:Type}(::Type{T}, file::JldFile, ptr::Ptr) = julia_type(jlconvert(Compat.UTF8String, file, ptr))
+jlconvert(::Type{T}, file::JldFile, ptr::Ptr) where {T<:Type} =
+    julia_type(jlconvert(String, file, ptr))
 
 ## Pointers
 
-h5type{T<:Ptr}(parent::JldFile, ::Type{T}, ::Bool) = throw(PointerException())
+h5type(parent::JldFile, ::Type{T}, ::Bool) where {T<:Ptr} = throw(PointerException())
 
 ## Union{}
 
@@ -294,7 +280,7 @@ h5fieldtype(parent::JldFile, ::Type{Union{}}, ::Bool) = JLD_REF_TYPE
 
 # These show up as having T.size == 0, hence the need for
 # specialization.
-h5fieldtype{T,N}(parent::JldFile, ::Type{Array{T,N}}, ::Bool) = JLD_REF_TYPE
+h5fieldtype(parent::JldFile, ::Type{Array{T,N}}, ::Bool) where {T,N} = JLD_REF_TYPE
 
 ## User-defined types
 ##
@@ -573,11 +559,11 @@ function gen_jlconvert!(T::ANY)
     end
 end
 
-@generated function jlconvert!{T}(out::Ptr, ::Type{T}, file::JldFile, ptr::Ptr)
+@generated function jlconvert!(out::Ptr, ::Type{T}, file::JldFile, ptr::Ptr) where T
     return gen_jlconvert!(T)
 end
 
-@generated function jlconvert{T}(::Type{T}, file::JldFile, ptr::Ptr)
+@generated function jlconvert(::Type{T}, file::JldFile, ptr::Ptr) where T
     return gen_jlconvert(T)
 end
 
@@ -681,7 +667,7 @@ function _gen_h5convert!(T::ANY)
     return ex
 end
 
-@generated function h5convert!{T}(out::Ptr, file::JldFile, x::T, wsession::JldWriteSession)
+@generated function h5convert!(out::Ptr, file::JldFile, x::T, wsession::JldWriteSession) where T
     return _gen_h5convert!(T)
 end
 
@@ -765,13 +751,10 @@ function reconstruct_type(parent::JldFile, dtype::HDF5Datatype, savedname::Abstr
     class_id = HDF5.h5t_get_class(dtype.id)
     if class_id == HDF5.H5T_OPAQUE
         if exists(dtype, "empty")
-            @eval (immutable $name; end; $name)
+            @eval (struct $name; end; $name)
         else
             sz = Int(HDF5.h5t_get_size(dtype.id))*8
-            # The new line between `$name` and `$sz` for the `$sz` to be parsed correctly
-            # on 0.4 and 0.5
-            @eval (@compat primitive type $name
-                   $sz end; $name)
+            @eval (primitive type $name $sz end; $name)
         end
     else
         # Figure out field names and types
@@ -807,7 +790,7 @@ function reconstruct_type(parent::JldFile, dtype::HDF5Datatype, savedname::Abstr
         else
             # We're reconstructing some other type
             @eval begin
-                immutable $name
+                struct $name
                     $([:($(fieldnames[i])::$(fieldtypes[i])) for i = 1:nfields]...)
                 end
                 $name

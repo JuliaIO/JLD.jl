@@ -9,7 +9,7 @@
 # Types inheriting from DataFile should have names, read, and write
 # methods
 
-@compat abstract type DataFile end
+abstract type DataFile end
 
 import Base: read, write
 
@@ -29,13 +29,13 @@ end
 
 # Read a list of variables, read(parent, "A", "B", "x", ...)
 read(parent::DataFile, name::ASCIIString...) =
-	tuple([read(parent, x) for x in name]...)
+    tuple([read(parent, x) for x in name]...)
 
 # Read one or more variables and pass them to a function. This is
 # convenient for avoiding type inference pitfalls with the usual
 # read syntax.
 read(f::Base.Callable, parent::DataFile, name::ASCIIString...) =
-	f(read(parent, name...)...)
+    f(read(parent, name...)...)
 
 # Read every variable in the file
 function read(f::DataFile)

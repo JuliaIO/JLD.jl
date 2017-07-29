@@ -1,6 +1,5 @@
 using HDF5, JLD
 using Compat, LegacyStrings
-using Compat: String, view
 using Base.Test
 
 # Define variables of different types
@@ -8,13 +7,13 @@ x = 3.7
 A = reshape(collect(1:15), 3, 5)
 Aarray = Vector{Float64}[[1.2,1.3],[2.2,2.3,2.4]]
 str = "Hello"
-stringsA = Compat.ASCIIString["It", "was", "a", "dark", "and", "stormy", "night"]
-stringsU = Compat.UTF8String["It", "was", "a", "dark", "and", "stormy", "night"]
+stringsA = String["It", "was", "a", "dark", "and", "stormy", "night"]
+stringsU = String["It", "was", "a", "dark", "and", "stormy", "night"]
 strings16 = convert(Array{UTF16String}, stringsA)
 strings16_2d = reshape(strings16[1:6], (2,3))
 empty_string = ""
-empty_string_array = Compat.ASCIIString[]
-empty_array_of_strings = Compat.ASCIIString[""]
+empty_string_array = String[]
+empty_array_of_strings = String[""]
 tf = true
 TF = A .> 10
 B = [-1.5 sqrt(2) NaN 6;
@@ -28,7 +27,7 @@ emptyA = zeros(0,2)
 emptyB = zeros(2,0)
 try
     global MyStruct
-    type MyStruct
+    mutable struct MyStruct
         len::Int
         data::Array{Float64}
         MyStruct(len::Int) = new(len)
@@ -64,15 +63,9 @@ unicode_char = '\U10ffff'
 β = Any[[1, 2], [3, 4]]  # issue #93
 vv = Vector{Int}[[1,2,3]]  # issue #123
 typevar = Array{Int}[[1]]
-if JLD.TYPESYSTEM_06
 eval(parse("typevar_lb = (Vector{U} where U<:Integer)[[1]]"))
 eval(parse("typevar_ub = (Vector{U} where Int<:U<:Any)[[1]]"))
 eval(parse("typevar_lb_ub = (Vector{U} where Int<:U<:Real)[[1]]"))
-else
-typevar_lb = Vector{TypeVar(:U, Integer)}[[1]]
-typevar_ub = Vector{TypeVar(:U, Int, Any)}[[1]]
-typevar_lb_ub = Vector{TypeVar(:U, Int, Real)}[[1]]
-end
 undef = Vector{Any}(1)
 undefs = Matrix{Any}(2, 2)
 ms_undef = MyStruct(0)
@@ -81,12 +74,12 @@ cpus = Base.Sys.cpu_info()
 # Immutable type:
 rng = 1:5
 # Type with a pointer field (#84)
-immutable ObjWithPointer
+struct ObjWithPointer
     a::Ptr{Void}
 end
 objwithpointer = ObjWithPointer(0)
 # Custom PrimitiveType (#99)
-@compat primitive type MyBT 64 end
+primitive type MyBT 64 end
 bt = reinterpret(MyBT, Int64(55))
 # Symbol arrays (#100)
 sa_asc = [:a, :b]
@@ -95,36 +88,36 @@ sa_utf8 = [:α, :β]
 subarray = view([1:5;], 1:5)
 # Array of empty tuples (to test tuple type params)
 arr_empty_tuple = (Tuple{})[]
-immutable EmptyImmutable end
+struct EmptyImmutable end
 emptyimmutable = EmptyImmutable()
 arr_emptyimmutable = [emptyimmutable]
-type EmptyType end
+mutable struct EmptyType end
 emptytype = EmptyType()
 arr_emptytype = [emptytype]
-immutable EmptyII
+struct EmptyII
     x::EmptyImmutable
 end
 emptyii = EmptyII(EmptyImmutable())
-immutable EmptyIT
+struct EmptyIT
     x::EmptyType
 end
 emptyit = EmptyIT(EmptyType())
-type EmptyTI
+mutable struct EmptyTI
     x::EmptyImmutable
 end
 emptyti = EmptyTI(EmptyImmutable())
-type EmptyTT
+mutable struct EmptyTT
     x::EmptyType
 end
 emptytt = EmptyTT(EmptyType())
-immutable EmptyIIOtherField
+struct EmptyIIOtherField
     x::EmptyImmutable
     y::Float64
 end
 emptyiiotherfield = EmptyIIOtherField(EmptyImmutable(), 5.0)
 
 # Unicode type field names (#118)
-type MyUnicodeStruct☺{τ}
+mutable struct MyUnicodeStruct☺{τ}
     α::τ
     ∂ₓα::τ
     @compat (::Type{MyUnicodeStruct☺{τ}}){τ}(α::τ, ∂ₓα::τ) = new{τ}(α, ∂ₓα)
@@ -137,41 +130,37 @@ tup = (1, 2, [1, 2], [1 2; 3 4], bt)
 # Empty tuple
 empty_tup = ()
 # Non-pointer-free immutable
-immutable MyImmutable{T}
+struct MyImmutable{T}
     x::Int
     y::Vector{T}
     z::Bool
 end
 nonpointerfree_immutable_1 = MyImmutable(1, [1., 2., 3.], false)
 nonpointerfree_immutable_2 = MyImmutable(2, Any[3., 4., 5.], true)
-immutable MyImmutable2
+struct MyImmutable2
     x::Vector{Int}
     MyImmutable2() = new()
 end
 nonpointerfree_immutable_3 = MyImmutable2()
 # Immutable with a non-concrete datatype (issue #143)
-immutable Vague
+struct Vague
     x::Integer
 end
 vague = Vague(7)
 # Immutable with a union of BitsTypes
-immutable BitsUnion
+struct BitsUnion
     x::Union{Int64, Float64}
 end
 bitsunion = BitsUnion(5.0)
 # Immutable with a union of Types
-let UT = if JLD.TYPESYSTEM_06
-             eval(parse("Type{T} where T <: Union{Int64, Float64}"))
-         else
-             Union{Type{Int64}, Type{Float64}}
-         end
-    @eval immutable TypeUnionField
+let UT = eval(parse("Type{T} where T <: Union{Int64, Float64}"))
+    @eval struct TypeUnionField
         x::$UT
     end
 end
 typeunionfield = TypeUnionField(Int64)
 # Generic union type field
-immutable GenericUnionField
+struct GenericUnionField
     x::Union{Vector{Int},Int}
 end
 genericunionfield = GenericUnionField(1)
@@ -180,7 +169,7 @@ arr_contained = [1, 2, 3]
 arr_ref = typeof(arr_contained)[]
 push!(arr_ref, arr_contained, arr_contained)
 # Object references
-type ObjRefType
+mutable struct ObjRefType
     x::ObjRefType
     y::ObjRefType
     ObjRefType() = new()
@@ -189,7 +178,7 @@ end
 ref1 = ObjRefType()
 obj_ref = ObjRefType(ObjRefType(ref1, ref1), ObjRefType(ref1, ref1))
 # Immutable that requires padding between elements in array
-immutable PaddingTest
+struct PaddingTest
     x::Int64
     y::Int8
 end
@@ -217,7 +206,7 @@ Bbig = Any[i for i=1:3000]
 Sbig = "A test string "^1000
 
 # Bits type type parameters
-type BitsParams{x}; end
+mutable struct BitsParams{x}; end
 bitsparamfloat  = BitsParams{1.0}()
 bitsparambool   = BitsParams{true}()
 bitsparamsymbol = BitsParams{:x}()
@@ -234,7 +223,7 @@ iseq(x::SimpleVector, y::SimpleVector) = collect(x) == collect(y)
 
 # Issue #243
 # Type that overloads != so that it is not boolean
-type NALikeType; end
+mutable struct NALikeType; end
 @compat Base.:(!=)(::NALikeType, ::NALikeType) = NALikeType()
 @compat Base.:(!=)(::NALikeType, ::Void) = NALikeType()
 @compat Base.:(!=)(::Void, ::NALikeType) = NALikeType()
@@ -355,9 +344,9 @@ fn = joinpath(tempdir(),"test.jld")
 # Issue #106
 module Mod106
 using Compat: @compat
-@compat primitive type Typ{T} 64 end
-typ{T}(x::Int64, ::Type{T}) = reinterpret(Typ{T}, x)
-@compat abstract type UnexportedT end
+primitive type Typ{T} 64 end
+typ(x::Int64, ::Type{T}) where {T} = reinterpret(Typ{T}, x)
+abstract type UnexportedT end
 end
 
 
@@ -804,25 +793,25 @@ using Compat: @compat
 using JLD
 import ..fn, Core.Intrinsics.box
 
-type TestType1
+mutable struct TestType1
     x::Int
 end
-type TestType2
+mutable struct TestType2
     x::Int
 end
-immutable TestType3
+struct TestType3
     x::TestType2
 end
 
-type TestType4
+mutable struct TestType4
     x::Int
 end
-type TestType5
+mutable struct TestType5
     x::TestType4
 end
-type TestType6 end
-@compat primitive type TestType7 8 end
-immutable TestType8
+mutable struct TestType6 end
+primitive type TestType7 8 end
+struct TestType8
     a::TestType4
     b::TestType5
     c::TestType6
@@ -847,13 +836,13 @@ jldopen(fn, "w") do file
 end
 end
 
-type TestType1
+mutable struct TestType1
     x::Float64
 end
-type TestType2
+mutable struct TestType2
     x::Int
 end
-immutable TestType3
+struct TestType3
     x::TestType1
 end
 

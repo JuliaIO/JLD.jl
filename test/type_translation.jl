@@ -7,7 +7,7 @@ module Writing
 using JLD
 import ..Translation: filename
 
-type MyType
+mutable struct MyType
     a::Int
 end
 
@@ -24,12 +24,12 @@ module Reading
 using JLD, Base.Test
 import ..Translation: filename
 
-type MyType
+mutable struct MyType
     a::Int
     b::Float32
 end
 
-type MyOldType
+mutable struct MyOldType
     a::Int
 end
 

@@ -6,23 +6,23 @@ using Compat
 
 ## Objects we want to save
 # data in MyType is always of length 5, and that is the basis for a more efficient serialization
-immutable MyType{T}
+struct MyType{T}
     data::Vector{T}
     id::Int
 
-    @compat function (::Type{MyType{T}}){T}(v::Vector{T}, id::Integer)
+    function MyType{T}(v::Vector{T}, id::Integer) where T
         length(v) == 5 || error("All vectors must be of length 5")
         new{T}(v, id)
     end
 end
-MyType{T}(v::Vector{T}, id::Integer) = MyType{T}(v, id)
-Base.eltype{T}(::Type{MyType{T}}) = T
+MyType(v::Vector{T}, id::Integer) where {T} = MyType{T}(v, id)
+Base.eltype(::Type{MyType{T}}) where {T} = T
 ==(a::MyType, b::MyType) = a.data == b.data && a.id == b.id
 
-immutable MyContainer{T}
+struct MyContainer{T}
     objs::Vector{MyType{T}}
 end
-Base.eltype{T}(::Type{MyContainer{T}}) = T
+Base.eltype(::Type{MyContainer{T}}) where {T} = T
 ==(a::MyContainer, b::MyContainer) = length(a.objs) == length(b.objs) && all(i->a.objs[i]==b.objs[i], 1:length(a.objs))
 
 end
@@ -35,17 +35,17 @@ module MySerializer
 using HDF5, JLD, MyTypes
 
 ## Defining the serialization format
-type MyContainerSerializer{T}
+mutable struct MyContainerSerializer{T}
     data::Matrix{T}
     ids::Vector{Int}
 end
-MyContainerSerializer{T}(data::Matrix{T},ids) = MyContainerSerializer{T}(data, ids)
-Base.eltype{T}(::Type{MyContainerSerializer{T}}) = T
-Base.eltype{T}(::MyContainerSerializer{T}) = T
+MyContainerSerializer(data::Matrix{T},ids) where {T} = MyContainerSerializer{T}(data, ids)
+Base.eltype(::Type{MyContainerSerializer{T}}) where {T} = T
+Base.eltype(::MyContainerSerializer{T}) where {T} = T
 
 JLD.readas(serdata::MyContainerSerializer) =
     MyContainer([MyType(serdata.data[:,i], serdata.ids[i]) for i = 1:length(serdata.ids)])
-function JLD.writeas{T}(data::MyContainer{T})
+function JLD.writeas(data::MyContainer{T}) where T
     ids = [obj.id for obj in data.objs]
     n = length(data.objs)
     vectors = Matrix{T}(5, n)
