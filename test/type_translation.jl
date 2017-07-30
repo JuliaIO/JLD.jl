@@ -33,10 +33,9 @@ mutable struct MyOldType
     a::Int
 end
 
-translate("MyType", "MyOldType")
+translate("MyType", "Translation.Reading.MyOldType")
 
 t = jldopen(filename) do file
-    truncate_module_path(file, Reading)
     read(file, "x")
 end
 
