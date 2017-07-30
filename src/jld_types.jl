@@ -150,7 +150,8 @@ function h5type(::JldFile, ::Type{T}, ::Bool) where T<:String
     JldDatatype(HDF5Datatype(type_id, false), 0)
 end
 
-h5convert!(out::Ptr, ::JldFile, x::String, ::JldWriteSession) =
+# no-inline needed to ensure gc-root for x
+@noinline h5convert!(out::Ptr, ::JldFile, x::String, ::JldWriteSession) =
     unsafe_store!(convert(Ptr{Ptr{UInt8}}, out), pointer(x))
 
 if !(isdefined(Core, :String) && isdefined(Core, :AbstractString))
@@ -184,7 +185,8 @@ function h5type(parent::JldFile, ::Type{UTF16String}, commit::Bool)
     commit ? commit_datatype(parent, dtype, UTF16String) : JldDatatype(dtype, -1)
 end
 
-h5convert!(out::Ptr, ::JldFile, x::UTF16String, ::JldWriteSession) =
+# no-inline needed to ensure gc-root for x
+@noinline h5convert!(out::Ptr, ::JldFile, x::UTF16String, ::JldWriteSession) =
     unsafe_store!(convert(Ptr{HDF5.Hvl_t}, out), HDF5.Hvl_t(length(x.data), pointer(x.data)))
 
 function jlconvert(::Type{UTF16String}, ::JldFile, ptr::Ptr)

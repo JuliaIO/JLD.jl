@@ -9,6 +9,8 @@ import Base: convert, length, endof, show, done, next, ndims, start, delete!, el
              size, sizeof, unsafe_convert, datatype_pointerfree
 import LegacyStrings: UTF16String
 
+@noinline gcuse(x) = x # because of use of `pointer`, need to mark gc-use end explicitly
+
 const magic_base = "Julia data file (HDF5), version "
 const version_current = v"0.1.1"
 const pathrefs = "/_refs"
@@ -28,7 +30,6 @@ end
 ### Dummy types used for converting attribute strings to Julia types
 mutable struct UnsupportedType; end
 mutable struct UnconvertedType; end
-mutable struct CompositeKind; end   # here this means "a type with fields"
 
 
 struct JldDatatype
@@ -196,10 +197,8 @@ function jldopen(filename::AbstractString, rd::Bool, wr::Bool, cr::Bool, tr::Boo
             end
             if startswith(magic, Vector{UInt8}(magic_base))
                 version = convert(VersionNumber, unsafe_string(pointer(magic) + length(magic_base)))
+                gcuse(magic)
                 if version < v"0.1.0"
-                    if !isdefined(JLD, :JLD00)
-                        eval(:(include(joinpath($(dirname(@__FILE__)), "JLD00.jl"))))
-                    end
                     fj = JLD00.jldopen(filename, rd, wr, cr, tr, ff; mmaparrays=mmaparrays)
                 else
                     f = HDF5.h5f_open(filename, wr ? HDF5.H5F_ACC_RDWR : HDF5.H5F_ACC_RDONLY, pa.id)
@@ -394,7 +393,9 @@ read_scalar(obj::JldDataset, dtype::HDF5Datatype, ::Type{T}) where {T<:BitsKindO
 function read_scalar(obj::JldDataset, dtype::HDF5Datatype, T::Type)
     buf = Vector{UInt8}(sizeof(dtype))
     HDF5.readarray(obj.plain, dtype.id, buf)
-    return readas(jlconvert(T, file(obj), pointer(buf)))
+    sc = readas(jlconvert(T, file(obj), pointer(buf)))
+    gcuse(buf)
+    sc
 end
 
 ## Arrays
@@ -454,6 +455,8 @@ function read_vals(obj::JldDataset, dtype::HDF5Datatype, T::Type, dspace_id::HDF
             h5offset += h5sz
         end
     end
+    gcuse(buf)
+    gcuse(out)
     out
 end
 
@@ -622,6 +625,7 @@ end
         h5convert!(offset, f, data[i], wsession)
         offset += sz
     end
+    gcuse(buf)
     buf
 end
 
@@ -690,6 +694,7 @@ function write_compound(parent::Union{JldFile, JldGroup}, name::String,
 
     buf = Vector{UInt8}(HDF5.h5t_get_size(dtype))
     h5convert!(pointer(buf), file(parent), s, wsession)
+    gcuse(buf)
 
     dspace = HDF5Dataspace(HDF5.h5s_create(HDF5.H5S_SCALAR))
     dprop, dprop_close = dset_create_properties(parent, length(buf), buf; kargs...)
@@ -871,12 +876,13 @@ const _where_macrocall = Symbol("@where")
 function expand_where_macro(e::Expr)
     e.head = :where
     shift!(e.args)
+    Compat.macros_have_sourceloc && shift!(e.args)
     return true
 end
 
 is_valid_type_ex(s::Symbol) = true
 is_valid_type_ex(s::QuoteNode) = true
-is_valid_type_ex(::T) where {T} = isbits(T)
+is_valid_type_ex(s) = isbits(typeof(s))
 function is_valid_type_ex(e::Expr)
     if e.head === :curly || e.head == :tuple || e.head == :.
         return all(is_valid_type_ex, e.args)
@@ -887,7 +893,14 @@ function is_valid_type_ex(e::Expr)
                is_valid_type_ex(e.args[2].args[2])
     elseif e.head == :call
         f = e.args[1]
-        return f === :Union || f === :TypeVar || f === :symbol
+        if f isa Expr
+            if f.head === :core
+                f = f.args[1]
+                return f === :Union || f === :TypeVar || f === :UnionAll
+            end
+        elseif f isa Symbol
+            return f === :Union || f === :TypeVar || f === :symbol
+        end
     end
     return false
 end
@@ -902,10 +915,19 @@ const typemap_Core = Dict(
 
 const _typedict = Dict{String,Type}()
 
-fixtypes(typ) = typ
-function fixtypes(typ::Expr)
+function fixtypes(typ)
+    whereall = []
+    typ = fixtypes(typ, whereall)
+    while !isempty(whereall)
+        var = pop!(whereall)
+        typ = Expr(:let, Expr(:call, Expr(:core, :UnionAll), var.args[1], typ), var)
+    end
+    return typ
+end
+fixtypes(typ, whereall) = typ
+function fixtypes(typ::Expr, whereall::Vector{Any})
     if typ.head === :macrocall && typ.args[1] === _where_macrocall
-        expand_where_macro(typ)
+        expand_where_macro(typ) # @where => TypeVar format forwards compatibility
     end
     if typ.head === :.
         if length(typ.args) == 2 && typ.args[1] === :Core
@@ -920,16 +942,31 @@ function fixtypes(typ::Expr)
     end
 
     for i = 1:length(typ.args)
-        typ.args[i] = fixtypes(typ.args[i])
+        typ.args[i] = fixtypes(typ.args[i], whereall)
+    end
+
+    if (typ.head === :call && !isempty(typ.args) &&
+        typ.args[1] === :TypeVar) # TypeVar => where format backwards compatibility
+        tv = gensym()
+        push!(whereall, Expr(:(=), tv, typ))
+        return tv
     end
 
     if (typ.head === :call && !isempty(typ.args) &&
         typ.args[1] === :Union)
-        return Expr(:curly, typ.args...)
+        typ = Expr(:curly, typ.args...)
     end
 
     if typ.head === :tuple
-        return Expr(:curly, :Tuple, typ.args...)
+        typ = Expr(:curly, :Tuple, typ.args...)
+    end
+
+    if typ.head === :curly
+        # assume literal TypeVar should work like `T{<:S}`
+        while !isempty(whereall)
+            var = pop!(whereall)
+            typ = Expr(:let, Expr(:call, Expr(:core, :UnionAll), var.args[1], typ), var)
+        end
     end
     return typ
 end
@@ -953,13 +990,7 @@ end
 function julia_type(e::Union{Symbol, Expr})
     if is_valid_type_ex(e)
         try # `try` needed to catch undefined symbols
-            typ = eval(current_module(), e)
-            typ == Type && return Type
-            isa(typ, Type) && return typ
-        end
-        try
-            # It's possible that `e` will represent a type not present in current_module(),
-            # but as long as `e` is fully qualified, it should exist/be reachable from Main
+            # `e` should be fully qualified, and thus reachable from Main
             typ = eval(Main, e)
             typ == Type && return Type
             isa(typ, Type) && return typ
@@ -1273,4 +1304,5 @@ function __init__()
     nothing
 end
 
+include("JLD00.jl")
 end

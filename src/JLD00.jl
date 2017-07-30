@@ -8,7 +8,7 @@ using HDF5, Compat, LegacyStrings
 import HDF5: close, dump, exists, file, getindex, setindex!, g_create, g_open, o_delete, name, names, read, size, write,
              HDF5ReferenceObj, HDF5BitsKind, ismmappable, readmmap
 import Base: length, endof, show, done, next, start, delete!
-import JLD
+import ..JLD
 
 # See julia issue #8907
 replacements = Any[]
@@ -289,6 +289,9 @@ function read(obj::Union{JldFile, JldDataset})
             error("Type ", typename, " is not recognized. As a fallback, you can load ", name(obj), " with readsafely().")
         end
     end
+    if T == UnsupportedType
+        error("Type expression ", typename, ", is not recognized.")
+    end
     read(obj, T)
 end
 function readsafely(obj::Union{JldFile, JldDataset})
@@ -431,6 +434,7 @@ function read(obj::JldDataset, ::Type{Expr})
 end
 
 # CompositeKind
+read(obj::JldDataset, T::UnionAll) = read(obj, Base.unwrap_unionall(T))
 function read(obj::JldDataset, T::DataType)
     if isempty(fieldnames(T)) && T.size > 0
         return read_bitstype(obj, T)
@@ -439,11 +443,14 @@ function read(obj::JldDataset, T::DataType)
     # Add the parameters
     if exists(obj, "TypeParameters")
         params = a_read(obj.plain, "TypeParameters")
-        p = Vector{Any}(length(params))
-        for i = 1:length(params)
-            p[i] = eval(current_module(), parse(params[i]))
+        if !isempty(params)
+            p = Vector{Any}(length(params))
+            for i = 1:length(params)
+                p[i] = eval(current_module(), parse(params[i]))
+            end
+            T = T.name.wrapper
+            T = T{p...}
         end
-        T = T{p...}
     end
     v = getrefs(obj, Any)
     if length(v) == 0
@@ -921,20 +928,15 @@ end
 
 ### Converting attribute strings to Julia types
 
-is_valid_type_ex(s::Symbol) = true
-is_valid_type_ex(s::QuoteNode) = true
-is_valid_type_ex(x::Int) = true
-is_valid_type_ex(e::Expr) = ((e.head == :curly || e.head == :tuple || e.head == :.) && all(is_valid_type_ex, e.args)) ||
-                            (e.head == :call && (e.args[1] == :Union || e.args[1] == :TypeVar))
-
 const _typedict = Dict{String,Type}()
+_typedict["CompositeKind"] = CompositeKind
 function _julia_type(s::AbstractString)
     typ = get(_typedict, s, UnconvertedType)
     if typ == UnconvertedType
         e = parse(s)
         e = JLD.fixtypes(e)
         typ = UnsupportedType
-        if is_valid_type_ex(e)
+        if JLD.is_valid_type_ex(e)
             try     # try needed to catch undefined symbols
                 typ = eval(e)
                 if !isa(typ, Type)
