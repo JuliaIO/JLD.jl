@@ -2,11 +2,12 @@ __precompile__()
 
 module JLD
 using HDF5, FileIO, Compat
-using Compat.String
 
 import HDF5: close, dump, exists, file, getindex, setindex!, g_create, g_open, o_delete, name, names, read, write,
              HDF5ReferenceObj, HDF5BitsKind, ismmappable, readmmap
-import Base: convert, length, endof, show, done, next, ndims, start, delete!, eltype, size, sizeof, unsafe_convert
+import Base: convert, length, endof, show, done, next, ndims, start, delete!, eltype,
+             size, sizeof, unsafe_convert, datatype_pointerfree
+import LegacyStrings: UTF16String
 
 const magic_base = "Julia data file (HDF5), version "
 const version_current = v"0.1.1"
@@ -18,38 +19,25 @@ const name_type_attr = "julia type"
 
 const BitsKindOrString = Union{HDF5BitsKind, String}
 
-if VERSION >= v"0.5.0-dev+5149"
-    import Base.datatype_pointerfree
-else
-    datatype_pointerfree(T::DataType) = T.pointerfree
-end
-
-replacements = Any[]
-if isdefined(Core, :String) && isdefined(Core, :AbstractString)
-    push!(replacements, :(s = replace(s, r"ASCIIString|UTF8String|ByteString", "String")))
-end
-if !isdefined(Base, :UTF16String)
-    push!(replacements, :(s = replace(s, "Base.UTF16String", "LegacyStrings.UTF16String")))
-end
-ex = Expr(:block, replacements...)
-@eval function julia_type(s::AbstractString)
-    $ex
+function julia_type(s::AbstractString)
+    s = replace(s, r"ASCIIString|UTF8String|ByteString", "String")
+    s = replace(s, "Base.UTF16String", "LegacyStrings.UTF16String")
     _julia_type(s)
 end
 
 ### Dummy types used for converting attribute strings to Julia types
-type UnsupportedType; end
-type UnconvertedType; end
-type CompositeKind; end   # here this means "a type with fields"
+mutable struct UnsupportedType; end
+mutable struct UnconvertedType; end
+mutable struct CompositeKind; end   # here this means "a type with fields"
 
 
-immutable JldDatatype
+struct JldDatatype
     dtype::HDF5Datatype
     index::Int
 end
 sizeof(T::JldDatatype) = sizeof(T.dtype)
 
-immutable JldWriteSession
+struct JldWriteSession
     persist::Vector{Any} # To hold objects that should not be garbage-collected
     h5ref::ObjectIdDict  # To hold mapping from Object/Array -> HDF5ReferenceObject
 
@@ -61,7 +49,7 @@ end
 # length(group) only returns the number of _completed_ items in a group. Since
 # we'll write recursively, we need to keep track of the number of reference
 # objects _started_.
-type JldFile <: HDF5.DataFile
+mutable struct JldFile <: HDF5.DataFile
     plain::HDF5File
     version::VersionNumber
     toclose::Bool
@@ -90,12 +78,12 @@ type JldFile <: HDF5.DataFile
     end
 end
 
-immutable JldGroup
+struct JldGroup
     plain::HDF5Group
     file::JldFile
 end
 
-immutable JldDataset
+struct JldDataset
     plain::HDF5Dataset
     file::JldFile
 end
@@ -109,10 +97,10 @@ iscompressed(g::JldGroup) = g.file.compress
 ismmapped(f::JldFile) = f.mmaparrays
 ismmapped(d::JldGroup) = d.file.mmaparrays
 
-immutable PointerException <: Exception; end
+struct PointerException <: Exception; end
 show(io::IO, ::PointerException) = print(io, "cannot write a pointer to JLD file")
 
-immutable TypeMismatchException <: Exception
+struct TypeMismatchException <: Exception
     typename::String
 end
 show(io::IO, e::TypeMismatchException) =
@@ -401,7 +389,7 @@ function read(obj::JldDataset)
 end
 
 ## Scalars
-read_scalar{T<:BitsKindOrString}(obj::JldDataset, dtype::HDF5Datatype, ::Type{T}) =
+read_scalar(obj::JldDataset, dtype::HDF5Datatype, ::Type{T}) where {T<:BitsKindOrString} =
     read(obj.plain, T)
 function read_scalar(obj::JldDataset, dtype::HDF5Datatype, T::Type)
     buf = Vector{UInt8}(sizeof(dtype))
@@ -423,8 +411,8 @@ function read_array(obj::JldDataset, dtype::HDF5Datatype, dspace_id::HDF5.Hid, d
 end
 
 # Arrays of basic HDF5 kinds
-function read_vals{S<:HDF5BitsKind}(obj::JldDataset, dtype::HDF5Datatype, T::Union{Type{S}, Type{Complex{S}}},
-                                    dspace_id::HDF5.Hid, dsel_id::HDF5.Hid, dims::Tuple{Vararg{Int}})
+function read_vals(obj::JldDataset, dtype::HDF5Datatype, T::Union{Type{S}, Type{Complex{S}}},
+                   dspace_id::HDF5.Hid, dsel_id::HDF5.Hid, dims::Tuple{Vararg{Int}}) where {S<:HDF5BitsKind}
     if obj.file.mmaparrays && HDF5.iscontiguous(obj.plain) && dsel_id == HDF5.H5S_ALL
         readmmap(obj.plain, Array{T})
     else
@@ -470,8 +458,8 @@ function read_vals(obj::JldDataset, dtype::HDF5Datatype, T::Type, dspace_id::HDF
 end
 
 # Arrays of references
-function read_refs{T}(obj::JldDataset, ::Type{T}, dspace_id::HDF5.Hid, dsel_id::HDF5.Hid,
-                      dims::Tuple{Vararg{Int}})
+function read_refs(obj::JldDataset, ::Type{T}, dspace_id::HDF5.Hid, dsel_id::HDF5.Hid,
+                   dims::Tuple{Vararg{Int}}) where T
     refs = Array{HDF5ReferenceObj}(dims)
     HDF5.h5d_read(obj.plain.id, HDF5.H5T_STD_REF_OBJ, dspace_id, dsel_id, HDF5.H5P_DEFAULT, refs)
 
@@ -562,9 +550,9 @@ function _write{T<:Union{HDF5BitsKind, String}}(parent::Union{JldFile, JldGroup}
 end
 
 # General array types
-function _write{T}(parent::Union{JldFile, JldGroup},
-                   path::String, data::Array{T},
-                   wsession::JldWriteSession; kargs...)
+function _write(parent::Union{JldFile, JldGroup},
+                path::String, data::Array{T},
+                wsession::JldWriteSession; kargs...) where T
     f = file(parent)
     dtype = h5fieldtype(f, T, true)
     buf = h5convert_array(f, data, dtype, wsession)
@@ -738,7 +726,7 @@ function getindex(dset::JldDataset, indices::Union{Range{Int},Integer}...)
     end
 end
 
-function setindex!{T,N}(dset::JldDataset, X::AbstractArray{T,N}, indices::Union{Range{Int},Integer}...)
+function setindex!(dset::JldDataset, X::AbstractArray{T,N}, indices::Union{Range{Int},Integer}...) where {T,N}
     f = file(dset)
     sz = map(length, indices)
     dsel_id = HDF5.hyperslab(dset.plain, indices...)
@@ -787,20 +775,20 @@ writeas(x) = x
 # Wrapper for associative keys
 # We write this instead of the associative to avoid dependence on the
 # Julia hash function
-immutable AssociativeWrapper{K,V,T<:Associative}
+struct AssociativeWrapper{K,V,T<:Associative}
     keys::Vector{K}
     values::Vector{V}
 end
 
-readas{K,V,T}(x::AssociativeWrapper{K,V,T}) = convert(T, x)
-function writeas{T<:Associative}(x::T)
+readas(x::AssociativeWrapper{K,V,T}) where {K,V,T} = convert(T, x)
+function writeas(x::T) where T<:Associative
     K, V = destructure(eltype(x))
     convert(AssociativeWrapper{K,V,T}, x)
 end
-destructure{K,V}(::Type{Pair{K,V}}) = K, V  # not inferrable, julia#10880
+destructure(::Type{Pair{K,V}}) where {K,V} = K, V  # not inferrable, julia#10880
 
 # Special case for associative, to rehash keys
-function convert{K,V,T<:Associative}(::Type{T}, x::AssociativeWrapper{K,V,T})
+function convert(::Type{T}, x::AssociativeWrapper{K,V,T}) where {K,V,T<:Associative}
     ret = T()
     keys = x.keys
     values = x.values
@@ -814,7 +802,7 @@ function convert{K,V,T<:Associative}(::Type{T}, x::AssociativeWrapper{K,V,T})
     ret
 end
 
-function convert{K,V,T}(::Type{AssociativeWrapper{K,V,T}}, d::Associative)
+function convert(::Type{AssociativeWrapper{K,V,T}}, d::Associative) where {K,V,T}
     n = length(d)
     ks = Vector{K}(n)
     vs = Vector{V}(n)
@@ -828,7 +816,7 @@ end
 
 # Special case for SimpleVector
 # Wrapper for SimpleVector
-immutable SimpleVectorWrapper
+struct SimpleVectorWrapper
     elements::Vector
 end
 
@@ -849,7 +837,7 @@ function func2expr(fun::Function)
     ast = Base.uncompressed_ast(fun.code)
     Expr(:function, Expr(:tuple, ast.args[1]...), Expr(:block, ast.args[3].args...))
 end
-immutable AnonymousFunctionSerializer
+struct AnonymousFunctionSerializer
     expr::Expr
     mod::AbstractString
     AnonymousFunctionSerializer(fun::Function) = new(func2expr(fun), string(fun.code.module))
@@ -858,7 +846,7 @@ readas(ast::AnonymousFunctionSerializer) = eval(modname2mod(ast.mod)).eval(ast.e
 writeas(fun::Function) = AnonymousFunctionSerializer(fun)
 
 # Serializer for GlobalRef
-immutable GlobalRefSerializer
+struct GlobalRefSerializer
     mod::AbstractString
     name::Symbol
     GlobalRefSerializer(g::GlobalRef) = new(string(g.mod), g.name)
@@ -867,65 +855,28 @@ readas(grs::GlobalRefSerializer) = GlobalRef(eval(modname2mod(grs.mod)), grs.nam
 writeas(gr::GlobalRef) = GlobalRefSerializer(gr)
 
 # StackFrame (Null the LambdaInfo in 0.5)
-if VERSION > v"0.5.0-dev+2420"
-    if VERSION < v"0.6.0-dev.615"
-        JLD.writeas(data::StackFrame) = Base.StackFrame(
-                   data.func,
-                   data.file,
-                   data.line,
-                   Nullable{Core.LambdaInfo}(),
-                   data.from_c,
-                   data.inlined,
-                   data.pointer)
-    else # or Core.MethodInstance in 0.6
-        JLD.writeas(data::StackFrame) = Base.StackFrame(
-                   data.func,
-                   data.file,
-                   data.line,
-                   Nullable{Core.MethodInstance}(),
-                   data.from_c,
-                   data.inlined,
-                   data.pointer)
-    end
-end
+# or Core.MethodInstance in 0.6
+JLD.writeas(data::StackFrame) =
+    Base.StackFrame(data.func,
+                    data.file,
+                    data.line,
+                    Nullable{Core.MethodInstance}(),
+                    data.from_c,
+                    data.inlined,
+                    data.pointer)
 
 ### Converting attribute strings to Julia types
 
 const _where_macrocall = Symbol("@where")
 function expand_where_macro(e::Expr)
-    if TYPESYSTEM_06
-        e.head = :where
-        shift!(e.args)
-    else
-        e.head = :let
-        tv = e.args[2]
-        if isa(tv, Symbol)
-            sym = tv
-            tv = :(TypeVar($sym))
-        elseif isa(tv, Expr)
-            if tv.head === :comparison
-                lb = tv.args[1]
-                sym = tv.args[3]
-                ub = tv.args[5]
-                tv = :(TypeVar($sym, $lb, $ub))
-            elseif tv.head === :(<:)
-                sym = tv.args[1]
-                ub = tv.args[2]
-                tv = :(TypeVar($sym, $ub))
-            else
-                return false
-            end
-        else
-            return false
-        end
-        e.args[2] = Expr(:(=), sym, tv)
-    end
+    e.head = :where
+    shift!(e.args)
     return true
 end
 
 is_valid_type_ex(s::Symbol) = true
 is_valid_type_ex(s::QuoteNode) = true
-is_valid_type_ex{T}(::T) = isbits(T)
+is_valid_type_ex(::T) where {T} = isbits(T)
 function is_valid_type_ex(e::Expr)
     if e.head === :curly || e.head == :tuple || e.head == :.
         return all(is_valid_type_ex, e.args)
@@ -949,7 +900,7 @@ const typemap_Core = Dict(
     :Nothing => :Void
 )
 
-const _typedict = Dict{Compat.UTF8String,Type}()
+const _typedict = Dict{String,Type}()
 
 fixtypes(typ) = typ
 function fixtypes(typ::Expr)
@@ -1020,7 +971,7 @@ end
 ### Converting Julia types to fully qualified names
 function full_typename(io::IO, file::JldFile, jltype::Union)
     print(io, "Union(")
-    types = uniontypes(jltype)
+    types = Base.uniontypes(jltype)
     if !isempty(types)
         full_typename(io, file, types[1])
         for i = 2:length(types)
@@ -1030,7 +981,6 @@ function full_typename(io::IO, file::JldFile, jltype::Union)
     end
     print(io, ')')
 end
-if TYPESYSTEM_06
 function full_typename(io::IO, file::JldFile, x::typeof(Union{}))
     print(io, "Union()")
 end
@@ -1057,25 +1007,6 @@ function full_typename(io::IO, file::JldFile, x::UnionAll)
 end
 function full_typename(io::IO, file::JldFile, tv::TypeVar)
     print(io, tv.name)
-end
-else
-function full_typename(io::IO, file::JldFile, tv::TypeVar)
-    if tv.lb === Union{} && tv.ub === Any
-        print(io, "TypeVar(:", tv.name, ")")
-    elseif tv.lb === Union{}
-        print(io, "TypeVar(:", tv.name, ",")
-        full_typename(io, file, tv.ub)
-        print(io, ')')
-    else
-        print(io, "TypeVar(:")
-        print(io, tv.name)
-        print(io, ',')
-        full_typename(io, file, tv.lb)
-        print(io, ',')
-        full_typename(io, file, tv.ub)
-        print(io, ')')
-    end
-end
 end
 function full_typename(io::IO, ::JldFile, x)
     # Only allow bitstypes that show as AST literals and make sure that they

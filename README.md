@@ -4,8 +4,7 @@
 [![Build status](https://ci.appveyor.com/api/projects/status/o2rc8yj3qnrhn738/branch/master?svg=true)](https://ci.appveyor.com/project/timholy/jld-jl-28dqq/branch/master)
 [![codecov.io](http://codecov.io/github/JuliaIO/JLD.jl/coverage.svg?branch=master)](http://codecov.io/github/JuliaIO/JLD.jl?branch=master)
 
-[![JLD](http://pkg.julialang.org/badges/JLD_0.3.svg)](http://pkg.julialang.org/?pkg=JLD&ver=0.3)
-[![JLD](http://pkg.julialang.org/badges/JLD_0.4.svg)](http://pkg.julialang.org/?pkg=JLD&ver=0.4)
+[![JLD](http://pkg.julialang.org/badges/JLD_0.6.svg)](http://pkg.julialang.org/detail/JLD)
 
 JLD, for which files conventionally have the extension `.jld`, is a
 widely-used format for data storage with the Julia programming
