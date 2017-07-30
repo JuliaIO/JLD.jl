@@ -875,6 +875,7 @@ JLD.writeas(data::StackFrame) =
 const _where_macrocall = Symbol("@where")
 function expand_where_macro(e::Expr)
     e.head = :where
+    shift!(e.args)
     Compat.macros_have_sourceloc && shift!(e.args)
     return true
 end
@@ -946,11 +947,9 @@ function fixtypes(typ::Expr, whereall::Vector{Any})
 
     if (typ.head === :call && !isempty(typ.args) &&
         typ.args[1] === :TypeVar) # TypeVar => where format backwards compatibility
-        if TYPESYSTEM_06
-            tv = gensym()
-            push!(whereall, Expr(:(=), tv, typ))
-            return tv
-        end
+        tv = gensym()
+        push!(whereall, Expr(:(=), tv, typ))
+        return tv
     end
 
     if (typ.head === :call && !isempty(typ.args) &&

@@ -434,9 +434,7 @@ function read(obj::JldDataset, ::Type{Expr})
 end
 
 # CompositeKind
-if JLD.TYPESYSTEM_06
-    read(obj::JldDataset, T::UnionAll) = read(obj, Base.unwrap_unionall(T))
-end
+read(obj::JldDataset, T::UnionAll) = read(obj, Base.unwrap_unionall(T))
 function read(obj::JldDataset, T::DataType)
     if isempty(fieldnames(T)) && T.size > 0
         return read_bitstype(obj, T)
@@ -450,9 +448,7 @@ function read(obj::JldDataset, T::DataType)
             for i = 1:length(params)
                 p[i] = eval(current_module(), parse(params[i]))
             end
-            if JLD.TYPESYSTEM_06
-                T = T.name.wrapper
-            end
+            T = T.name.wrapper
             T = T{p...}
         end
     end
