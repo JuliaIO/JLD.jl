@@ -956,3 +956,18 @@ if VERSION > v"0.5.0-dev+2420" # when StackFrames were introduced
     end
 end
 rm(f)
+
+# Issue #173
+struct TestBenchmarkGroup
+    tags::Vector{Any}
+    data::Dict{Any,Any}
+end
+mktempdir() do d
+    file = joinpath(d, "test173.jld")
+    JLD.save(file, "t173", TestBenchmarkGroup(Any[], Dict{Any,Any}()))
+    t = JLD.load(file)["t173"]
+    @test t isa TestBenchmarkGroup
+    @test isempty(t.tags) && eltype(t.tags) == Any
+    @test isempty(t.data) && eltype(t.data) == Pair{Any,Any}
+    rm(file)
+end
