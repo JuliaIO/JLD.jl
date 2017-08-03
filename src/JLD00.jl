@@ -526,8 +526,8 @@ end
 ### Writing ###
 
 # Write "basic" types
-function write{T<:Union{HDF5BitsKind, String}}(parent::Union{JldFile, JldGroup}, name::String,
-                                                   data::Union{T, Array{T}}, astype::String)
+function write(parent::Union{JldFile, JldGroup}, name::String,
+                   data::Union{T, Array{T}}, astype::String) where T<:Union{HDF5BitsKind, String}
     # Create the dataset
     dset, dtype = d_create(parent.plain, name, data)
     try
@@ -541,15 +541,15 @@ function write{T<:Union{HDF5BitsKind, String}}(parent::Union{JldFile, JldGroup},
         close(dtype)
     end
 end
-write{T<:Union{HDF5BitsKind, String}}(parent::Union{JldFile, JldGroup}, name::String, data::Union{T, Array{T}}) =
+write(parent::Union{JldFile, JldGroup}, name::String, data::Union{T, Array{T}}) where {T<:Union{HDF5BitsKind, String}} =
     write(parent, name, data, full_typename(typeof(data)))
 
 # Arrays-of-arrays of basic types
-write{T<:Union{HDF5BitsKind, String}}(parent::Union{JldFile, JldGroup}, name::String,
-                                            data::Array{Array{T,1}}, astype::String) =
+write(parent::Union{JldFile, JldGroup}, name::String,
+            data::Array{Array{T,1}}, astype::String) where {T<:Union{HDF5BitsKind, String}} =
     write(parent, name, HDF5.HDF5Vlen(data), astype)
-write{T<:Union{HDF5BitsKind, String}}(parent::Union{JldFile, JldGroup}, name::String,
-                                            data::Array{Array{T,1}}) =
+write(parent::Union{JldFile, JldGroup}, name::String,
+            data::Array{Array{T,1}}) where {T<:Union{HDF5BitsKind, String}} =
     write(parent, name, data, full_typename(typeof(data)))
 function write(parent::Union{JldFile, JldGroup}, name::String,
                   data::HDF5.HDF5Vlen{T}, astype::String) where T
