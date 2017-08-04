@@ -533,10 +533,10 @@ function dset_create_properties(parent, sz::Int, obj, chunk=Int[]; mmap::Bool=fa
 end
 
 # Write "basic" types
-function _write{T<:Union{HDF5BitsKind, String}}(parent::Union{JldFile, JldGroup},
-                                                    name::String,
-                                                    data::Union{T, Array{T}},
-                                                    wsession::JldWriteSession; kargs...)
+function _write(parent::Union{JldFile, JldGroup},
+                    name::String,
+                    data::Union{T, Array{T}},
+                    wsession::JldWriteSession; kargs...) where T<:Union{HDF5BitsKind, String}
     chunk = T <: String ? Int[] : HDF5.heuristic_chunk(data)
     dprop, dprop_close = dset_create_properties(parent, sizeof(data), data, chunk; kargs...)
     dset, dtype = d_create(parent.plain, String(name), data, HDF5._link_properties(name), dprop)

@@ -154,14 +154,6 @@ end
 @noinline h5convert!(out::Ptr, ::JldFile, x::String, ::JldWriteSession) =
     unsafe_store!(convert(Ptr{Ptr{UInt8}}, out), pointer(x))
 
-if !(isdefined(Core, :String) && isdefined(Core, :AbstractString))
-    function jlconvert(T::Union{Type{Compat.ASCIIString},Type{Compat.UTF8String}}, ::JldFile, ptr::Ptr)
-        strptr = unsafe_load(convert(Ptr{Ptr{UInt8}}, ptr))
-        n = Int(ccall(:strlen, Csize_t, (Ptr{UInt8},), strptr))
-        T(unsafe_wrap(Array, strptr, n, true))
-    end
-end
-
 function jlconvert(T::Union{Type{String}}, ::JldFile, ptr::Ptr)
     strptr = unsafe_load(convert(Ptr{Ptr{UInt8}}, ptr))
     str = unsafe_string(strptr)
@@ -203,7 +195,7 @@ h5fieldtype(parent::JldFile, ::Type{Symbol}, commit::Bool) =
 function h5type(parent::JldFile, ::Type{Symbol}, commit::Bool)
     haskey(parent.jlh5type, Symbol) && return parent.jlh5type[Symbol]
     id = HDF5.h5t_create(HDF5.H5T_COMPOUND, 8)
-    HDF5.h5t_insert(id, "symbol_", 0, h5fieldtype(parent, Compat.UTF8String, commit))
+    HDF5.h5t_insert(id, "symbol_", 0, h5fieldtype(parent, String, commit))
     dtype = HDF5Datatype(id, parent.plain)
     commit ? commit_datatype(parent, dtype, Symbol) : JldDatatype(dtype, -1)
 end
@@ -214,7 +206,7 @@ function h5convert!(out::Ptr, file::JldFile, x::Symbol, wsession::JldWriteSessio
     h5convert!(out, file, str, wsession)
 end
 
-jlconvert(::Type{Symbol}, file::JldFile, ptr::Ptr) = Symbol(jlconvert(Compat.UTF8String, file, ptr))
+jlconvert(::Type{Symbol}, file::JldFile, ptr::Ptr) = Symbol(jlconvert(String, file, ptr))
 
 
 ## BigInts and BigFloats
@@ -226,7 +218,7 @@ h5fieldtype(parent::JldFile, T::Union{Type{BigInt}, Type{BigFloat}}, commit::Boo
 function h5type(parent::JldFile, T::Union{Type{BigInt}, Type{BigFloat}}, commit::Bool)
     haskey(parent.jlh5type, T) && return parent.jlh5type[T]
     id = HDF5.h5t_create(HDF5.H5T_COMPOUND, 8)
-    HDF5.h5t_insert(id, "data_", 0, h5fieldtype(parent, Compat.ASCIIString, commit))
+    HDF5.h5t_insert(id, "data_", 0, h5fieldtype(parent, String, commit))
     dtype = HDF5Datatype(id, parent.plain)
     commit ? commit_datatype(parent, dtype, T) : JldDatatype(dtype, -1)
 end
@@ -243,9 +235,9 @@ function h5convert!(out::Ptr, file::JldFile, x::BigFloat, wsession::JldWriteSess
 end
 
 jlconvert(::Type{BigInt}, file::JldFile, ptr::Ptr) =
-    parse(BigInt, jlconvert(Compat.ASCIIString, file, ptr), 62)
+    parse(BigInt, jlconvert(String, file, ptr), 62)
 jlconvert(::Type{BigFloat}, file::JldFile, ptr::Ptr) =
-    parse(BigFloat, jlconvert(Compat.ASCIIString, file, ptr))
+    parse(BigFloat, jlconvert(String, file, ptr))
 
 ## Types
 
@@ -256,7 +248,7 @@ h5fieldtype(parent::JldFile, ::Type{T}, commit::Bool) where {T<:Type} =
 function h5type(parent::JldFile, ::Type{T}, commit::Bool) where T<:Type
     haskey(parent.jlh5type, Type) && return parent.jlh5type[Type]
     id = HDF5.h5t_create(HDF5.H5T_COMPOUND, 8)
-    HDF5.h5t_insert(id, "typename_", 0, h5fieldtype(parent, Compat.UTF8String, commit))
+    HDF5.h5t_insert(id, "typename_", 0, h5fieldtype(parent, String, commit))
     dtype = HDF5Datatype(id, parent.plain)
     out = commit ? commit_datatype(parent, dtype, Type) : JldDatatype(dtype, -1)
 end
@@ -404,11 +396,7 @@ end
 function _gen_jlconvert_immutable(typeinfo::JldTypeInfo, T::ANY)
     ex = Expr(:block)
     args = ex.args
-    if VERSION >= v"0.5.0-dev+2285"
-        jloffsets = map(idx->fieldoffset(T, idx), 1:nfields(T))
-    else
-        jloffsets = fieldoffsets(T)
-    end
+    jloffsets = map(idx->fieldoffset(T, idx), 1:nfields(T))
     if datatype_pointerfree(T)
         push!(args, :(out = Ref{T}()))
         push!(args, :(jlconvert!(unsafe_convert(Ptr{T}, out), T, file, ptr)))
@@ -451,11 +439,7 @@ end
 function _gen_jlconvert_immutable!(typeinfo::JldTypeInfo, T::ANY)
     ex = Expr(:block)
     args = ex.args
-    if VERSION >= v"0.5.0-dev+2285"
-        jloffsets = map(idx->fieldoffset(T, idx), 1:nfields(T))
-    else
-        jloffsets = fieldoffsets(T)
-    end
+    jloffsets = map(idx->fieldoffset(T, idx), 1:nfields(T))
     if datatype_pointerfree(T)
         for i = 1:length(typeinfo.dtypes)
             h5offset = typeinfo.offsets[i]
@@ -682,9 +666,9 @@ function jldatatype(parent::JldFile, dtype::HDF5Datatype)
     if class_id == HDF5.H5T_STRING
         cset = HDF5.h5t_get_cset(dtype.id)
         if cset == HDF5.H5T_CSET_ASCII
-            return Compat.ASCIIString
+            return String
         elseif cset == HDF5.H5T_CSET_UTF8
-            return Compat.UTF8String
+            return String
         else
             error("character set ", cset, " not recognized")
         end

@@ -425,10 +425,6 @@ for compatible in (false, true), compress in (false, true)
     @write fid symhard
     @write fid d
     @write fid ex
-    if VERSION < v"0.5.0-dev"
-        @write fid fun
-        @write fid function_referencing_module
-    end
     @write fid T
     @write fid char
     @write fid unicode_char
@@ -547,14 +543,6 @@ for compatible in (false, true), compress in (false, true)
         @check fidr d
         exr = read(fidr, "ex")   # line numbers are stripped, don't expect equality
         checkexpr(ex, exr)
-        if VERSION < v"0.5.0-dev"
-            funr = read(fidr, "fun")
-            checkfuns(fun, funr)
-            @test funr(3,5) == 38
-            function_referencing_module_r = read(fidr, "function_referencing_module")
-            checkfuns(function_referencing_module, function_referencing_module_r)
-            @test function_referencing_module_r(3,7) == 34
-        end
         @check fidr T
         @check fidr char
         @check fidr unicode_char
@@ -948,13 +936,7 @@ f2()
 li, lidict = Profile.retrieve()
 f = tempname()*".jld"
 @save f li lidict
-if VERSION > v"0.5.0-dev+2420" # when StackFrames were introduced
-    if VERSION < v"0.6.0-dev.384" # ref https://github.com/JuliaLang/julia/commit/60f20bd58c5ca59275b3fb18760dbbf9b9089ca8
-        @test isa(JLD.load(f)["lidict"], Dict{UInt,Array{StackFrame,1}})
-    else
-        @test isa(JLD.load(f)["lidict"], Dict{UInt64,Array{StackFrame,1}})
-    end
-end
+@test isa(JLD.load(f)["lidict"], Dict{UInt64,Array{StackFrame,1}})
 rm(f)
 
 # Issue #173
