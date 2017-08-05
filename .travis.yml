@@ -7,6 +7,10 @@ julia:
     - nightly
 notifications:
     email: false
+addons:
+  apt:
+    packages:
+    - hdf5-tools
 script:
     - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
     - julia -e 'Pkg.clone(pwd()); Pkg.add("JLDArchives"); Pkg.checkout("JLDArchives")'
