@@ -2,4 +2,3 @@ julia 0.6
 HDF5
 Compat 0.25.0
 FileIO
-LegacyStrings

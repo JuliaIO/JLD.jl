@@ -7,7 +7,6 @@ import HDF5: close, dump, exists, file, getindex, setindex!, g_create, g_open, o
              HDF5ReferenceObj, HDF5BitsKind, ismmappable, readmmap
 import Base: convert, length, endof, show, done, next, ndims, start, delete!, eltype,
              size, sizeof, unsafe_convert, datatype_pointerfree
-import LegacyStrings: UTF16String
 
 @noinline gcuse(x) = x # because of use of `pointer`, need to mark gc-use end explicitly
 
@@ -20,12 +19,6 @@ const pathcreator = "/_creator"
 const name_type_attr = "julia type"
 
 const BitsKindOrString = Union{HDF5BitsKind, String}
-
-function julia_type(s::AbstractString)
-    s = replace(s, r"ASCIIString|UTF8String|ByteString", "String")
-    s = replace(s, "Base.UTF16String", "LegacyStrings.UTF16String")
-    _julia_type(s)
-end
 
 ### Dummy types used for converting attribute strings to Julia types
 mutable struct UnsupportedType; end
@@ -971,7 +964,7 @@ function fixtypes(typ::Expr, whereall::Vector{Any})
     return typ
 end
 
-function _julia_type(s::AbstractString)
+function julia_type(s::AbstractString)
     typ = get(_typedict, s, UnconvertedType)
     if typ == UnconvertedType
         sp = parse(s, raise=false)
