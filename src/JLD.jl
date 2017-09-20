@@ -608,7 +608,7 @@ function h5convert_array(f::JldFile, data::Array,
 end
 
 # Hack to ensure that _h5convert_vals isn't compiled before h5convert!
-function h5convert_vals(f::JldFile, data::ANY, dtype::JldDatatype,
+function h5convert_vals(f::JldFile, @nospecialize(data), dtype::JldDatatype,
                         wsession::JldWriteSession)
     _h5convert_vals(f, data, dtype, wsession)
 end
@@ -716,7 +716,7 @@ endof(dset::JldDataset) = length(dset)
 ndims(dset::JldDataset) = ndims(dset.plain)
 
 ### Read/write via getindex/setindex! ###
-function getindex(dset::JldDataset, indices::Union{Range{Int},Integer}...)
+function getindex(dset::JldDataset, indices::Union{AbstractRange{Int},Integer}...)
     sz = map(length, indices)
     dsel_id = HDF5.hyperslab(dset.plain, indices...)
     try
@@ -731,7 +731,7 @@ function getindex(dset::JldDataset, indices::Union{Range{Int},Integer}...)
     end
 end
 
-function setindex!(dset::JldDataset, X::AbstractArray{T,N}, indices::Union{Range{Int},Integer}...) where {T,N}
+function setindex!(dset::JldDataset, X::AbstractArray{T,N}, indices::Union{AbstractRange{Int},Integer}...) where {T,N}
     f = file(dset)
     sz = map(length, indices)
     dsel_id = HDF5.hyperslab(dset.plain, indices...)
@@ -763,12 +763,12 @@ function setindex!(dset::JldDataset, X::AbstractArray{T,N}, indices::Union{Range
         HDF5.h5s_close(dsel_id)
     end
 end
-function setindex!(dset::JldDataset, x::Number, indices::Union{Range{Int},Integer}...)
+function setindex!(dset::JldDataset, x::Number, indices::Union{AbstractRange{Int},Integer}...)
     setindex!(dset, fill(x, map(length, indices)), indices...)
 end
 
-getindex(dset::JldDataset, I::Union{Range{Int},Integer,Colon}...) = getindex(dset, ntuple(i-> isa(I[i], Colon) ? (1:size(dset,i)) : I[i], length(I))...)
-setindex!(dset::JldDataset, x, I::Union{Range{Int},Integer,Colon}...) = setindex!(dset, x, ntuple(i-> isa(I[i], Colon) ? (1:size(dset,i)) : I[i], length(I))...)
+getindex(dset::JldDataset, I::Union{AbstractRange{Int},Integer,Colon}...) = getindex(dset, ntuple(i-> isa(I[i], Colon) ? (1:size(dset,i)) : I[i], length(I))...)
+setindex!(dset::JldDataset, x, I::Union{AbstractRange{Int},Integer,Colon}...) = setindex!(dset, x, ntuple(i-> isa(I[i], Colon) ? (1:size(dset,i)) : I[i], length(I))...)
 
 length(x::Union{JldFile, JldGroup}) = length(names(x))
 
@@ -1108,7 +1108,7 @@ end
 function names(parent::Union{JldFile, JldGroup})
     n = names(parent.plain)
     keep = trues(length(n))
-    const reserved = [pathrefs[2:end], pathtypes[2:end], pathrequire[2:end], pathcreator[2:end]]
+    reserved = [pathrefs[2:end], pathtypes[2:end], pathrequire[2:end], pathcreator[2:end]]
     for i = 1:length(n)
         if in(n[i], reserved)
             keep[i] = false
@@ -1292,7 +1292,7 @@ const _runtime_properties = Ref{HDF5.HDF5Properties}()
 compact_properties() = _runtime_properties[]
 
 function __init__()
-    const COMPACT_PROPERTIES = p_create(HDF5.H5P_DATASET_CREATE)
+    COMPACT_PROPERTIES = p_create(HDF5.H5P_DATASET_CREATE)
     HDF5.h5p_set_layout(COMPACT_PROPERTIES.id, HDF5.H5D_COMPACT)
 
     global _runtime_properties

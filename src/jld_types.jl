@@ -40,11 +40,11 @@ function JldTypeInfo(parent::JldFile, types::TypesType, commit::Bool)
     end
     JldTypeInfo(dtypes, offsets, offset)
 end
-JldTypeInfo(parent::JldFile, T::ANY, commit::Bool) =
+JldTypeInfo(parent::JldFile, @nospecialize(T), commit::Bool) =
     JldTypeInfo(parent, Base.unwrap_unionall(T).types, commit)
 
 # Write an HDF5 datatype to the file
-function commit_datatype(parent::JldFile, dtype::HDF5Datatype, T::ANY)
+function commit_datatype(parent::JldFile, dtype::HDF5Datatype, @nospecialize(T))
     pparent = parent.plain
     if !exists(pparent, pathtypes)
         gtypes = g_create(pparent, pathtypes)
@@ -66,7 +66,7 @@ end
 
 # If parent is nothing, we are creating the datatype in memory for
 # validation, so don't commit it
-commit_datatype(parent::Void, dtype::HDF5Datatype, T::ANY) =
+commit_datatype(parent::Void, dtype::HDF5Datatype, @nospecialize(T)) =
     JldDatatype(dtype, -1)
 
 # The HDF5 library loses track of relationships among committed types
@@ -82,7 +82,7 @@ Base.convert(::Type{HDF5.Hid}, x::JldDatatype) = x.dtype.id
 ## h5fieldtype - gets the JldDatatype corresponding to a given
 ## Julia type, when the Julia type is stored as an element of an HDF5
 ## compound type or array. This is the only function that can operate
-## on non-leaf types.
+## on non-concrete types.
 ##
 ## h5type - gets the JldDatatype corresponding to an object of the
 ## given Julia type. For pointerfree types, this is usually the same as
@@ -285,7 +285,7 @@ h5fieldtype(parent::JldFile, ::Type{Array{T,N}}, ::Bool) where {T,N} = JLD_REF_T
 
 if INLINE_TUPLE
     h5fieldtype(parent::JldFile, T::TupleType, commit::Bool) =
-        isleaftype(T) ? h5type(parent, T, commit) : JLD_REF_TYPE
+        isconcrete(T) ? h5type(parent, T, commit) : JLD_REF_TYPE
 else
     h5fieldtype(parent::JldFile, T::TupleType, ::Bool) = JLD_REF_TYPE
 end
@@ -294,7 +294,7 @@ function h5type(parent::JldFile, T::TupleType, commit::Bool)
     haskey(parent.jlh5type, T) && return parent.jlh5type[T]
     # Tuples should always be concretely typed, unless we're
     # reconstructing a tuple, in which case commit will be false
-    !commit || isleaftype(T) || error("unexpected non-leaf type $T")
+    !commit || isconcrete(T) || error("unexpected non-concrete type $T")
 
     typeinfo = JldTypeInfo(parent, T, commit)
     if isopaque(T)
@@ -325,19 +325,19 @@ end
 # For cases not defined above: If the type is mutable and non-empty,
 # this is a reference. If the type is immutable, this is a type itself.
 if INLINE_POINTER_IMMUTABLE
-    h5fieldtype(parent::JldFile, T::ANY, commit::Bool) =
-        isleaftype(T) && (!T.mutable || T.size == 0) ? h5type(parent, T, commit) : JLD_REF_TYPE
+    h5fieldtype(parent::JldFile, @nospecialize(T), commit::Bool) =
+        isconcrete(T) && (!T.mutable || T.size == 0) ? h5type(parent, T, commit) : JLD_REF_TYPE
 else
-    h5fieldtype(parent::JldFile, T::ANY, commit::Bool) =
-        isleaftype(T) && (!T.mutable || T.size == 0) && datatype_pointerfree(T) ? h5type(parent, T, commit) : JLD_REF_TYPE
+    h5fieldtype(parent::JldFile, @nospecialize(T), commit::Bool) =
+        isconcrete(T) && (!T.mutable || T.size == 0) && datatype_pointerfree(T) ? h5type(parent, T, commit) : JLD_REF_TYPE
 end
 
-function h5type(parent::JldFile, T::ANY, commit::Bool)
+function h5type(parent::JldFile, @nospecialize(T), commit::Bool)
     !isa(T, DataType) && unknown_type_err(T)
     T = T::DataType
 
     haskey(parent.jlh5type, T) && return parent.jlh5type[T]
-    isleaftype(T) || error("unexpected non-leaf type ", T)
+    isconcrete(T) || error("unexpected non-concrete type ", T)
 
     if isopaque(T)
         # Empty type or non-basic bitstype
@@ -366,7 +366,7 @@ function h5type(parent::JldFile, T::ANY, commit::Bool)
 end
 
 # Normal objects
-function _gen_jlconvert_type(typeinfo::JldTypeInfo, T::ANY)
+function _gen_jlconvert_type(typeinfo::JldTypeInfo, @nospecialize(T))
     ex = Expr(:block)
     args = ex.args
     push!(args, :(out = ccall(:jl_new_struct_uninit, Ref{T}, (Any,), T)))
@@ -388,15 +388,15 @@ function _gen_jlconvert_type(typeinfo::JldTypeInfo, T::ANY)
     return ex
 end
 
-function _gen_jlconvert_type!(typeinfo::JldTypeInfo, T::ANY)
+function _gen_jlconvert_type!(typeinfo::JldTypeInfo, @nospecialize(T))
     error("unimplemented")
 end
 
 # Immutables
-function _gen_jlconvert_immutable(typeinfo::JldTypeInfo, T::ANY)
+function _gen_jlconvert_immutable(typeinfo::JldTypeInfo, @nospecialize(T))
     ex = Expr(:block)
     args = ex.args
-    jloffsets = map(idx->fieldoffset(T, idx), 1:nfields(T))
+    jloffsets = map(idx->fieldoffset(T, idx), 1:fieldcount(T))
     if datatype_pointerfree(T)
         push!(args, :(out = Ref{T}()))
         push!(args, :(jlconvert!(unsafe_convert(Ptr{T}, out), T, file, ptr)))
@@ -407,7 +407,7 @@ function _gen_jlconvert_immutable(typeinfo::JldTypeInfo, T::ANY)
             h5offset = typeinfo.offsets[i]
             jloffset = jloffsets[i]
             obj = gensym("obj")
-            if isa(T.types[i], TupleType) && VERSION >= v"0.4.0-dev+4319" && isbits(T.types[i])
+            if isa(T.types[i], TupleType) && isbits(T.types[i])
                 # We continue to store tuples as references for the sake of
                 # backwards compatibility, but on 0.4 they are now stored
                 # inline
@@ -436,16 +436,16 @@ function _gen_jlconvert_immutable(typeinfo::JldTypeInfo, T::ANY)
     return ex
 end
 
-function _gen_jlconvert_immutable!(typeinfo::JldTypeInfo, T::ANY)
+function _gen_jlconvert_immutable!(typeinfo::JldTypeInfo, @nospecialize(T))
     ex = Expr(:block)
     args = ex.args
-    jloffsets = map(idx->fieldoffset(T, idx), 1:nfields(T))
+    jloffsets = map(idx->fieldoffset(T, idx), 1:fieldcount(T))
     if datatype_pointerfree(T)
         for i = 1:length(typeinfo.dtypes)
             h5offset = typeinfo.offsets[i]
             jloffset = jloffsets[i]
 
-            if isa(T.types[i], TupleType) && VERSION >= v"0.4.0-dev+4319" && isbits(T.types[i])
+            if isa(T.types[i], TupleType) && isbits(T.types[i])
                 # We continue to store tuples as references for the sake of
                 # backwards compatibility, but on 0.4 they are now stored
                 # inline
@@ -471,9 +471,9 @@ function _gen_jlconvert_immutable!(typeinfo::JldTypeInfo, T::ANY)
     return ex
 end
 
-function _gen_jlconvert_tuple(typeinfo::JldTypeInfo, T::ANY)
+function _gen_jlconvert_tuple(typeinfo::JldTypeInfo, @nospecialize(T))
     # custom converter (rather than falling back to immutable datatype handling)
-    # as we need to make sure to return a valid Tuple leaf type,
+    # as we need to make sure to return a valid Tuple concrete type,
     # but some parameters of T may be Any
     ex = Expr(:block)
     args = ex.args
@@ -496,14 +496,14 @@ function _gen_jlconvert_tuple(typeinfo::JldTypeInfo, T::ANY)
 end
 
 
-function gen_jlconvert(typeinfo::JldTypeInfo, T::ANY)
+function gen_jlconvert(typeinfo::JldTypeInfo, @nospecialize(T))
     T === Void && return
     # TODO: this is probably invalid, so try to do this differently
     JLCONVERT_INFO[T] = typeinfo
     nothing
 end
 
-function gen_jlconvert(T::ANY)
+function gen_jlconvert(@nospecialize(T))
     typeinfo = JLCONVERT_INFO[T]::JldTypeInfo
     if isa(T, TupleType)
         return _gen_jlconvert_tuple(typeinfo, T)
@@ -522,7 +522,7 @@ function gen_jlconvert(T::ANY)
     end
 end
 
-function gen_jlconvert!(T::ANY)
+function gen_jlconvert!(@nospecialize(T))
     typeinfo = JLCONVERT_INFO[T]::JldTypeInfo
     if isa(T, TupleType)
         error("unimplemented")
@@ -577,7 +577,7 @@ unknown_type_err(T) =
              Please report this error at https://github.com/JuliaIO/HDF5.jl""")
 
 const BUILTIN_H5_types = Union{Void, Type, String, HDF5.HDF5BitsKind, UTF16String, Symbol, BigInt, BigFloat}
-function gen_h5convert(parent::JldFile, T::ANY)
+function gen_h5convert(parent::JldFile, @nospecialize(T))
     T <: BUILTIN_H5_types && return
     # TODO: this is probably invalid, so try to do this differently
     haskey(H5CONVERT_INFO, T) && return
@@ -606,7 +606,7 @@ function gen_h5convert(parent::JldFile, T::ANY)
 end
 
 # There is no point in specializing this
-function _gen_h5convert!(T::ANY)
+function _gen_h5convert!(@nospecialize(T))
     parent = H5CONVERT_INFO[T]::JldFile
     dtype = parent.jlh5type[T].dtype
     istuple = isa(T, TupleType)
