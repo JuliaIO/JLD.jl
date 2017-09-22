@@ -343,7 +343,6 @@ fn = joinpath(tempdir(),"test.jld")
 
 # Issue #106
 module Mod106
-using Compat: @compat
 primitive type Typ{T} 64 end
 typ(x::Int64, ::Type{T}) where {T} = reinterpret(Typ{T}, x)
 abstract type UnexportedT end
@@ -503,7 +502,7 @@ for compatible in (false, true), compress in (false, true)
     close(fid)
 
     # mmapping currently fails on Windows; re-enable once it can work
-    for mmap = (@static is_windows() ? false : (false, true))
+    for mmap = (@static Compat.Sys.iswindows() ? false : (false, true))
         fidr = jldopen(fn, "r", mmaparrays=mmap)
         @test creator(fidr, "VERSION") == VERSION
         @test creator(fidr, "WORD_SIZE") == Sys.WORD_SIZE
@@ -777,7 +776,6 @@ end # compress in (false,true)
 
 # mismatched and missing types
 module JLDTemp1
-using Compat: @compat
 using JLD
 import ..fn
 

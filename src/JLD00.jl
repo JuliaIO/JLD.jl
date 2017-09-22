@@ -3,7 +3,7 @@
 ###############################################
 
 module JLD00
-using HDF5, Compat, LegacyStrings
+using HDF5, LegacyStrings
 # Add methods to...
 import HDF5: close, dump, exists, file, getindex, setindex!, g_create, g_open, o_delete, name, names, read, size, write,
              HDF5ReferenceObj, HDF5BitsKind, ismmappable, readmmap
@@ -13,9 +13,7 @@ import ..JLD
 # See julia issue #8907
 replacements = Any[]
 push!(replacements, :(s = replace(s, r"Uint(?=\d{1,3})", "UInt")))
-if isdefined(Core, :String) && isdefined(Core, :AbstractString)
-    push!(replacements, :(s = replace(s, r"ASCIIString|UTF8String|ByteString", "String")))
-end
+push!(replacements, :(s = replace(s, r"ASCIIString|UTF8String|ByteString", "String")))
 ex = Expr(:block, replacements...)
 @eval function julia_type(s::AbstractString)
     $ex
@@ -604,7 +602,7 @@ function write(parent::Union{JldFile, JldGroup}, name::String, c::Complex)
     write(parent, name, reim, full_typename(typeof(c)))
 end
 function write(parent::Union{JldFile, JldGroup}, name::String, C::Array{T}) where T<:Complex
-    reim = reinterpret(realtype(T), C, ntuple(i->i==1?2:size(C,i-1), ndims(C)+1))
+    reim = reinterpret(realtype(T), C, ntuple(i->i==1 ? 2 : size(C,i-1), ndims(C)+1))
     write(parent, name, reim, full_typename(typeof(C)))
 end
 
@@ -1010,7 +1008,7 @@ end
 function names(parent::Union{JldFile, JldGroup})
     n = names(parent.plain)
     keep = trues(length(n))
-    const reserved = [pathrefs[2:end], pathtypes[2:end], pathrequire[2:end]]
+    reserved = [pathrefs[2:end], pathtypes[2:end], pathrequire[2:end]]
     for i = 1:length(n)
         if in(n[i], reserved)
             keep[i] = false

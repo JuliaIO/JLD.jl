@@ -2,7 +2,6 @@ module MyTypes
 
 import Base: ==
 export MyType, MyContainer
-using Compat
 
 ## Objects we want to save
 # data in MyType is always of length 5, and that is the basis for a more efficient serialization
