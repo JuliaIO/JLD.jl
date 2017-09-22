@@ -1246,8 +1246,17 @@ function FileIO.load(f::File{format"JLD"}, varnames::Tuple{Vararg{AbstractString
     end
 end
 
+# As of this version, packages aren't loaded into Main by default, so the root
+# module check verifies that packages are still identified as being top level
+# even if a binding to them is not present in Main.
+if VERSION >= v"0.7.0-DEV.1877"
+    _istoplevel(m::Module) = module_parent(m) == Main || Base.is_root_module(m)
+else
+    _istoplevel(m::Module) = module_parent(m) == Main
+end
+
 function addrequire(file::JldFile, mod::Module)
-    module_parent(mod) == Main || error("must be a toplevel module")
+    _istoplevel(mod) || error("must be a toplevel module")
     addrequire(file, module_name(mod))
 end
 
