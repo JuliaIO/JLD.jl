@@ -525,13 +525,13 @@ end
 
 # Write "basic" types
 function write(parent::Union{JldFile, JldGroup}, name::String,
-                   data::Union{T, Array{T}}, astype::String) where T<:Union{HDF5BitsKind, String}
+                   data::Union{T, StridedArray{T}}, astype::String) where T<:Union{HDF5BitsKind, String}
     # Create the dataset
     dset, dtype = d_create(parent.plain, name, data)
     try
         # Write the attribute
         a_write(dset, name_type_attr, astype)
-        isa(data, Array) && isempty(data) && a_write(dset, "dims", [size(data)...])
+        isa(data, StridedArray) && isempty(data) && a_write(dset, "dims", [size(data)...])
         # Write the data
         HDF5.writearray(dset, dtype.id, data)
     finally
@@ -602,7 +602,7 @@ function write(parent::Union{JldFile, JldGroup}, name::String, c::Complex)
     write(parent, name, reim, full_typename(typeof(c)))
 end
 function write(parent::Union{JldFile, JldGroup}, name::String, C::Array{T}) where T<:Complex
-    reim = reinterpret(realtype(T), C, ntuple(i->i==1 ? 2 : size(C,i-1), ndims(C)+1))
+    reim = reinterpret(realtype(T), reshape(C, ntuple(i->i==1 ? 1 : size(C,i-1), ndims(C)+1)))
     write(parent, name, reim, full_typename(typeof(C)))
 end
 
