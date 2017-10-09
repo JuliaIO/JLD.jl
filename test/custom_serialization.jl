@@ -63,7 +63,7 @@ using MyTypes, JLD, Base.Test
 obj1 = MyType(rand(5), 2)
 obj2 = MyType(rand(5), 17)
 container = MyContainer([obj1,obj2])
-filename = joinpath(tempdir(), "customserializer.jld")
+filename = joinpath(tempdir(), "customserializer-$(randstring()).jld")
 jldopen(filename, "w") do file
     write(file, "mydata", container)
 end
