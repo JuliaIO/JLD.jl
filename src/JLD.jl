@@ -592,15 +592,17 @@ _write(parent::Union{JldFile, JldGroup}, path::String, data::Array{Union{}},
 function h5convert_array(f::JldFile, data::Array,
                          dtype::JldDatatype, wsession::JldWriteSession)
     if dtype == JLD_REF_TYPE
-        refs = Vector{HDF5ReferenceObj}(length(data))
+        # For type stability, return as Vector{UInt8}
+        refs = VERSION < v"0.7.0-DEV.2083" ? reinterpret(UInt8,Vector{HDF5ReferenceObj}(length(data))) : Vector{UInt8}(length(data)*sizeof(HDF5ReferenceObj))
+        arefs = reinterpret(HDF5ReferenceObj, refs)
         for i = 1:length(data)
             if isassigned(data, i)
-                refs[i] = write_ref(f, data[i], wsession)
+                arefs[i] = write_ref(f, data[i], wsession)
             else
-                refs[i] = HDF5.HDF5ReferenceObj_NULL
+                arefs[i] = HDF5.HDF5ReferenceObj_NULL
             end
         end
-        reinterpret(UInt8, refs) # for type stability
+        refs
     else
         gen_h5convert(f, eltype(data))
         h5convert_vals(f, data, dtype, wsession)
