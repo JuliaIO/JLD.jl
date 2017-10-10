@@ -163,6 +163,30 @@ translate("MyType", "MyOldType")
 before reading the variables. These definitions will cause old objects
 to be returned as a (new) `MyType` with `b == 0.0f0`.
 
+Note that in the call to `translate`:
+
+1. You must specify the full module path for each type, including for built-in
+   Julia types like `Core.Int64`.
+2. Type parameters must be declared explicitly. If you wish to call `translate`
+   on multiple instances of a parameterized type, you should make separate calls
+   for each one.
+
+For example, the definition for the built-in `Nullable` type changed between
+Julia v0.5 and v0.6. To read in `Nullable{Int64}`s and `Nullable{Float64}`s
+saved in Julia 0.5:
+
+```jl
+type OldNullable{T}
+    isnull::Bool
+    value::T
+end
+
+JLD.readas(x::OldNullable) = Nullable(x.value, !x.isnull)
+
+translate("Base.Nullable{Core.Int64}",  "OldNullable{Core.Int64}")
+translate("Base.Nullable{Core.Float64}, "OldNullable{Core.Float64}")
+```
+
 ## Unusual module paths
 
 Types are saved with their full module path, e.g., `MyTypes.MyType`. In general, most types should naturally be in modules that have a consistent module path each time you use them. However, in rare cases you may want to save types from a different module path than you expect to use them. You can use the `rootmodule` option to truncate the module path. For example, if you save your file this way:
