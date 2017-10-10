@@ -850,7 +850,10 @@ struct AnonymousFunctionSerializer
     AnonymousFunctionSerializer(fun::Function) = new(func2expr(fun), string(fun.code.module))
 end
 readas(ast::AnonymousFunctionSerializer) = eval(modname2mod(ast.mod)).eval(ast.expr)
-writeas(fun::Function) = AnonymousFunctionSerializer(fun)
+
+if VERSION < v"0.5"
+  writeas(fun::Function) = AnonymousFunctionSerializer(fun)
+end
 
 # Serializer for GlobalRef
 struct GlobalRefSerializer
@@ -973,6 +976,13 @@ function fixtypes(typ::Expr, whereall::Vector{Any})
     return typ
 end
 
+isescapedsymbol(x) = isa(x, QuoteNode) && isa(x.value, String)
+fixsymbols(x) = isescapedsymbol(x) ? Symbol(x.value) : x
+fixsymbols(x::Expr) =
+    x.head == :. && isescapedsymbol(x.args[2]) ?
+        Expr(:., fixsymbols(x.args[1]), QuoteNode(Symbol(x.args[2].value))) :
+        Expr(x.head, map(fixsymbols, x.args)...)
+
 function _julia_type(s::AbstractString)
     typ = get(_typedict, s, UnconvertedType)
     if typ == UnconvertedType
@@ -981,7 +991,7 @@ function _julia_type(s::AbstractString)
             println("error parsing type string ", s)
             eval(sp)
         end
-        typ = julia_type(fixtypes(sp))
+        typ = julia_type(fixtypes(fixsymbols(sp)))
         if typ != UnsupportedType
             _typedict[s] = typ
         end
@@ -1000,6 +1010,8 @@ function julia_type(e::Union{Symbol, Expr})
     end
     return UnsupportedType
 end
+
+julia_type(x::QuoteNode) = julia_type(x.value)
 
 ### Converting Julia types to fully qualified names
 function full_typename(io::IO, file::JldFile, jltype::Union)
@@ -1083,7 +1095,9 @@ function full_typename(io::IO, file::JldFile, jltype::DataType)
         end
     end
 
-    print(io, jltype.name.name)
+    escsymbol(x::Symbol) = Base.isidentifier(x) ? x : ":\"$(escape_string(string(x)))\""
+
+    print(io, escsymbol(jltype.name.name))
     if !isempty(jltype.parameters)
         print(io, '{')
         full_typename(io, file, jltype.parameters[1])

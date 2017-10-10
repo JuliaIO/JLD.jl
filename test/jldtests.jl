@@ -374,6 +374,13 @@ write(fid, "a", [1:3;])
 close(fid)
 rm(fn)
 
+# Functions
+fid = jldopen(fn, "w", compatible = true, compress = true)
+write(fid, "fft", fft)
+@test read(fid, "fft") == fft
+close(fid)
+rm(fn)
+
 # Hyperslab
 for compatible in (false, true), compress in (false, true)
     jldopen(fn, "w", compatible=compatible, compress=compress) do fid
