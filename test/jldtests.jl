@@ -929,6 +929,14 @@ f2()
 @test loadmacrotestvar1 == ['a', 'b', 'c']
 @test loadmacrotestvar2 == 1
 
+mktempdir() do dir
+    cd(dir) do
+        JLD.save("_.jld", "_", Val{typeof(sin)}())
+        # should not throw an error
+        JLD.load("_.jld", "_")
+    end
+end
+
 # Test StackFrame by saving profile output
 @profile eigvals(randn(3,3))
 li, lidict = Profile.retrieve()
