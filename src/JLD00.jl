@@ -846,7 +846,7 @@ isarraycomplex(::Type{Array{T, N}}) where {T<:Complex, N} = true
 isarraycomplex(t) = false
 
 ### Read/write via getindex/setindex! ###
-function getindex(dset::JldDataset, indices::Union{Integer, RangeIndex}...)
+function getindex(dset::JldDataset, indices::Union{Integer, Base.RangeIndex}...)
     if !exists(attrs(dset.plain), name_type_attr)
         # Fallback to plain read
         return getindex(dset.plain, indices...)
@@ -861,18 +861,18 @@ function getindex(dset::JldDataset, indices::Union{Integer, RangeIndex}...)
     _getindex(dset, T, indices...)
 end
 
-_getindex(dset::JldDataset, ::Type{Array{T,N}}, indices::RangeIndex...) where {T<:HDF5BitsKind,N} =
+_getindex(dset::JldDataset, ::Type{Array{T,N}}, indices::Base.RangeIndex...) where {T<:HDF5BitsKind,N} =
     HDF5._getindex(dset.plain, T, indices...)
-function _getindex(dset::JldDataset, ::Type{Array{T,N}}, indices::RangeIndex...) where {T<:Complex,N}
+function _getindex(dset::JldDataset, ::Type{Array{T,N}}, indices::Base.RangeIndex...) where {T<:Complex,N}
     reinterpret(T, HDF5._getindex(dset.plain, realtype(T), 1:2, indices...), ntuple(i->length(indices[i]), length(indices)))
 end
-function _getindex(dset::JldDataset, ::Type{Array{Bool,N}}, indices::RangeIndex...) where N
+function _getindex(dset::JldDataset, ::Type{Array{Bool,N}}, indices::Base.RangeIndex...) where N
     tf = HDF5._getindex(dset.plain, UInt8, indices...)
     bool(tf)
 end
-_getindex(dset::JldDataset, ::Type{Array{T,N}}, indices::Union{Integer, RangeIndex}...) where {T,N} =
+_getindex(dset::JldDataset, ::Type{Array{T,N}}, indices::Union{Integer, Base.RangeIndex}...) where {T,N} =
     getrefs(dset, T, indices...)
-function setindex!(dset::JldDataset, X::Array, indices::RangeIndex...)
+function setindex!(dset::JldDataset, X::Array, indices::Base.RangeIndex...)
     if !exists(attrs(dset.plain), name_type_attr)
         # Fallback to plain read
         return setindex!(dset.plain, X, indices...)

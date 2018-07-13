@@ -12,7 +12,7 @@ const JLCONVERT_INFO = Dict{Any, Any}()
 const H5CONVERT_INFO = Dict{Any, Any}()
 
 const EMPTY_TUPLE_TYPE = Tuple{}
-const TypesType = SimpleVector
+const TypesType = Core.SimpleVector
 TupleType{T<:Tuple} = Type{T}
 tupletypes(T::TupleType) = T.parameters
 typetuple(types) = Tuple{types...}
