@@ -829,7 +829,7 @@ end
 
 # Special case for SimpleVector
 readas(x::SimpleVectorWrapper) = Core.svec(x.elements...)
-writeas(x::SimpleVector) = SimpleVectorWrapper([x...])
+writeas(x::Core.SimpleVector) = SimpleVectorWrapper([x...])
 
 # function to convert string(mod::Module) back to mod::Module
 function modname2mod(modname::AbstractString)
@@ -863,7 +863,7 @@ writeas(gr::GlobalRef) = GlobalRefSerializer(gr)
 
 # StackFrame (Null the LambdaInfo in 0.5)
 # or Core.MethodInstance in 0.6
-JLD.writeas(data::StackFrame) =
+JLD.writeas(data::Base.StackFrame) =
     Base.StackFrame(data.func,
                     data.file,
                     data.line,
