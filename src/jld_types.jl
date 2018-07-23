@@ -520,7 +520,7 @@ function gen_jlconvert(@nospecialize(T))
     if isa(T, TupleType)
         return _gen_jlconvert_tuple(typeinfo, T)
     elseif isempty(fieldnames(T))
-        if T.size == 0
+        if T.size == 0 && !T.mutable
             return T.instance
         else
            return :(_jlconvert_bits(T, ptr))

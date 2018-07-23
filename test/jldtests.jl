@@ -231,7 +231,7 @@ iseq(x::Core.SimpleVector, y::Core.SimpleVector) = collect(x) == collect(y)
 
 # Issue #243
 # Type that overloads != so that it is not boolean
-mutable struct NALikeType; end
+struct NALikeType; end
 Base.:(!=)(::NALikeType, ::NALikeType) = NALikeType()
 Base.:(!=)(::NALikeType, ::Nothing) = NALikeType()
 Base.:(!=)(::Nothing, ::NALikeType) = NALikeType()
@@ -243,7 +243,14 @@ ver = v"0.1.2"
 iseq(x,y) = isequal(x,y)
 iseq(x::MyStruct, y::MyStruct) = (x.len == y.len && x.data == y.data)
 iseq(x::MyImmutable, y::MyImmutable) = (isequal(x.x, y.x) && isequal(x.y, y.y) && isequal(x.z, y.z))
-iseq(x::Union{EmptyTI, EmptyTT}, y::Union{EmptyTI, EmptyTT}) = isequal(x.x, y.x)
+@static if VERSION ≥ v"0.7.0-DEV.3693" # empty mutable structs are no longer singletons
+    iseq(x::EmptyType, y::EmptyType) = true
+    iseq(x::EmptyIT, y::EmptyIT) = true
+    iseq(x::Array{EmptyType}, y::Array{EmptyType}) = size(x) == size(y)
+    iseq(x::BitsParams{T}, y::BitsParams{T}) where {T} = true
+    iseq(x::BitsParams, y::BitsParams) = false
+end
+iseq(x::Union{EmptyTI, EmptyTT}, y::Union{EmptyTI, EmptyTT}) = iseq(x.x, y.x)
 iseq(c1::Array{Base.Sys.CPUinfo}, c2::Array{Base.Sys.CPUinfo}) = length(c1) == length(c2) && all([iseq(c1[i], c2[i]) for i = 1:length(c1)])
 function iseq(c1::Base.Sys.CPUinfo, c2::Base.Sys.CPUinfo)
     for n in fieldnames(Base.Sys.CPUinfo)
@@ -400,7 +407,7 @@ for compatible in (false, true), compress in (false, true)
         Arnd = rand(5,3)
         write(fid, "A", Arnd)
         Aset = fid["A"]
-        Aset[:,2] = 15   # TODO: broadcasting with .= doesn't work for JldDataset
+        Aset[:,2] = 15   # FIXME: broadcasting with .= doesn't work for JldDataset
         Arnd[:,2] .= 15
         @test read(fid, "A") == Arnd
     end
@@ -589,13 +596,13 @@ for compatible in (false, true), compress in (false, true)
         @check fidr subarray
         @check fidr arr_empty_tuple
         @check fidr emptyimmutable
-        # @check fidr emptytype # TODO: fails, why?
+        @check fidr emptytype
         @check fidr arr_emptyimmutable
-        # @check fidr arr_emptytype # TODO: fails, why?
+        @check fidr arr_emptytype
         @check fidr emptyii
-        # @check fidr emptyit # TODO: fails, why?
+        @check fidr emptyit
         @check fidr emptyti
-        # @check fidr emptytt # TODO: fails, why?
+        @check fidr emptytt
         @check fidr emptyiiotherfield
         @check fidr unicodestruct☺
         @check fidr array_of_matrices
@@ -606,7 +613,7 @@ for compatible in (false, true), compress in (false, true)
         @check fidr nonpointerfree_immutable_3
         vaguer = read(fidr, "vague")
         @test typeof(vaguer) == typeof(vague) && vaguer.x == vague.x
-        # @check fidr bitsunion # TODO: fails, why?
+        # @check fidr bitsunion # FIXME: fails on 0.7 with message: "reference encountered in pointerfree immutable; this is a bug"
         @check fidr typeunionfield
         @check fidr genericunionfield
 
@@ -623,24 +630,24 @@ for compatible in (false, true), compress in (false, true)
         @check fidr empty_arr_2
         @check fidr empty_arr_3
         @check fidr empty_arr_4
-        # @check fidr bigdata # TODO: fails, why?
+        !mmap && @check fidr bigdata # FIXME: fails on 0.7 due to data alignment issues
         @check fidr bigfloats
         @check fidr bigints
         @check fidr none
         @check fidr nonearr
         @check fidr scalar_nothing
         @check fidr vector_nothing
-        # @check fidr Abig # TODO: fails, why?
+        !mmap && @check fidr Abig # FIXME: fails on 0.7 due to data alignment issues
         @check fidr Bbig
         @check fidr Sbig
-        # @check fidr bitsparamfloat # TODO: fails, why?
-        # @check fidr bitsparambool # TODO: fails, why?
-        # @check fidr bitsparamsymbol # TODO: fails, why?
-        # @check fidr bitsparamint # TODO: fails, why?
-        # @check fidr bitsparamuint # TODO: fails, why?
+        @check fidr bitsparamfloat
+        @check fidr bitsparambool
+        @check fidr bitsparamsymbol
+        @check fidr bitsparamint
+        @check fidr bitsparamuint
         @check fidr tuple_of_tuples
         @check fidr simplevec
-        # @check fidr natyperef # TODO: fails, why?
+        @check fidr natyperef
         @check fidr ver
 
         x1 = read(fidr, "group1/x")
