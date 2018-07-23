@@ -1,4 +1,5 @@
 using HDF5, JLD
+using Compat.Test
 
 module JLDTemp
 using HDF5, JLD
@@ -12,7 +13,7 @@ function create()
         write(file, "x", x)
     end
 end
-end
+end # module
 
 JLDTemp.create()
 
@@ -20,7 +21,7 @@ push!(LOAD_PATH, splitdir(@__FILE__)[1])
 x = jldopen("require.jld") do file
     read(file, "x")
 end
-@assert typeof(x) == JLDTest.Object
-@assert x.data == 5
+@test typeof(x) == JLDTest.Object
+@test x.data == 5
 pop!(LOAD_PATH)
 rm("require.jld")
