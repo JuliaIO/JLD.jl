@@ -903,8 +903,13 @@ function is_valid_type_ex(e::Expr)
     elseif e.head === :where
         return is_valid_type_ex(e.args[1])
     elseif e.head === :let && length(e.args) == 2
-        return is_valid_type_ex(e.args[1]) &&
-               is_valid_type_ex(e.args[2].args[2])
+        @static if VERSION < v"0.7.0-DEV.1671"
+            return is_valid_type_ex(e.args[1]) &&
+                   is_valid_type_ex(e.args[2].args[2])
+        else
+            return is_valid_type_ex(e.args[2]) &&
+                   is_valid_type_ex(e.args[1].args[2])
+        end
     elseif e.head == :call
         f = e.args[1]
         if f isa Expr
@@ -923,7 +928,9 @@ const typemap_Core = Dict(
     :Uint8 => :UInt8,
     :Uint16 => :Uint16,
     :Uint32 => :UInt32,
-    :Uint64 => :UInt64
+    :Uint64 => :UInt64,
+    :Nothing => Symbol(Nothing), # translates to :Void or :Nothing via Compat
+    :Void => Symbol(Nothing)
 )
 
 const _typedict = Dict{String,Type}()
@@ -933,7 +940,11 @@ function fixtypes(typ)
     typ = fixtypes(typ, whereall)
     while !isempty(whereall)
         var = pop!(whereall)
-        typ = Expr(:let, Expr(:call, Expr(:core, :UnionAll), var.args[1], typ), var)
+        @static if VERSION < v"0.7.0-DEV.1671"
+            typ = Expr(:let, Expr(:call, Expr(:core, :UnionAll), var.args[1], typ), var)
+        else
+            typ = Expr(:let, var, Expr(:call, Expr(:core, :UnionAll), var.args[1], typ))
+        end
     end
     return typ
 end
@@ -978,7 +989,11 @@ function fixtypes(typ::Expr, whereall::Vector{Any})
         # assume literal TypeVar should work like `T{<:S}`
         while !isempty(whereall)
             var = pop!(whereall)
-            typ = Expr(:let, Expr(:call, Expr(:core, :UnionAll), var.args[1], typ), var)
+            @static if VERSION < v"0.7.0-DEV.1671"
+                typ = Expr(:let, Expr(:call, Expr(:core, :UnionAll), var.args[1], typ), var)
+            else
+                typ = Expr(:let, var, Expr(:call, Expr(:core, :UnionAll), var.args[1], typ))
+            end
         end
     end
     return typ
