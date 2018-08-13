@@ -219,7 +219,7 @@ tuple_of_tuples = (1, 2, (3, 4, [5, 6]), [7, 8])
 
 # SimpleVector
 simplevec = Core.svec(1, 2, Int64, "foo")
-iseq(x::SimpleVector, y::SimpleVector) = collect(x) == collect(y)
+iseq(x::Core.SimpleVector, y::Core.SimpleVector) = collect(x) == collect(y)
 
 # Issue #243
 # Type that overloads != so that it is not boolean
