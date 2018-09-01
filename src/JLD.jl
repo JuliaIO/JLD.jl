@@ -1,7 +1,7 @@
 __precompile__()
 
 module JLD
-using HDF5, FileIO, Compat
+using HDF5, FileIO, Compat, Printf
 
 import HDF5: close, dump, exists, file, getindex, setindex!, g_create, g_open, o_delete, name, names, read, write,
              HDF5ReferenceObj, HDF5BitsKind, ismmappable, readmmap
@@ -40,7 +40,7 @@ sizeof(T::JldDatatype) = sizeof(T.dtype)
 
 struct JldWriteSession
     persist::Vector{Any} # To hold objects that should not be garbage-collected
-    h5ref::ObjectIdDict  # To hold mapping from Object/Array -> HDF5ReferenceObject
+    h5ref::IdDict{Any,Any}  # To hold mapping from Object/Array -> HDF5ReferenceObject
 
     JldWriteSession() = new(Any[], ObjectIdDict())
 end
@@ -996,6 +996,7 @@ function julia_type(e::Union{Symbol, Expr})
             typ = eval(Main, e)
             typ == Type && return Type
             isa(typ, Type) && return typ
+        catch
         end
     end
     return UnsupportedType
