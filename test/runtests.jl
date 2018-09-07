@@ -1,4 +1,4 @@
-using HDF5, Mmap
+using HDF5
 
 runtest(filename) = (println(filename); include(filename))
 

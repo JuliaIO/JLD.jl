@@ -183,11 +183,7 @@ end
 
 function jlconvert(::Type{UTF16String}, ::JldFile, ptr::Ptr)
     hvl = unsafe_load(convert(Ptr{HDF5.Hvl_t}, ptr))
-    @static if VERSION < v"0.7.0-DEV.3526"
-        UTF16String(unsafe_wrap(Array, convert(Ptr{UInt16}, hvl.p), hvl.len, true))
-    else
-        UTF16String(unsafe_wrap(Array, convert(Ptr{UInt16}, hvl.p), hvl.len, own=true))
-    end
+    UTF16String(unsafe_wrap(Array, convert(Ptr{UInt16}, hvl.p), hvl.len, own=true))
 end
 
 ## Symbols
@@ -228,11 +224,7 @@ function h5type(parent::JldFile, T::Union{Type{BigInt}, Type{BigFloat}}, commit:
 end
 
 function h5convert!(out::Ptr, file::JldFile, x::BigInt, wsession::JldWriteSession)
-    @static if VERSION < v"0.7.0-DEV.4446"
-        str = base(62, x)
-    else
-        str = string(x, base=62)
-    end
+    str = string(x, base=62)
     push!(wsession.persist, str)
     h5convert!(out, file, str, wsession)
 end
@@ -243,11 +235,7 @@ function h5convert!(out::Ptr, file::JldFile, x::BigFloat, wsession::JldWriteSess
 end
 
 jlconvert(::Type{BigInt}, file::JldFile, ptr::Ptr) =
-    @static if VERSION < v"0.7.0-DEV.3526"
-        parse(BigInt, jlconvert(String, file, ptr), 62)
-    else
-        parse(BigInt, jlconvert(String, file, ptr), base = 62)
-    end
+    parse(BigInt, jlconvert(String, file, ptr), base = 62)
 jlconvert(::Type{BigFloat}, file::JldFile, ptr::Ptr) =
     parse(BigFloat, jlconvert(String, file, ptr))
 

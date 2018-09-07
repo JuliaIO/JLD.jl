@@ -12,8 +12,6 @@ import Base: convert, length, show, done, next, ndims, start, delete!, eltype,
 import Compat: lastindex
 import LegacyStrings: UTF16String
 
-const mparse = @static VERSION ≥ v"0.7.0-DEV.2437" ? Meta.parse : Base.parse
-
 @noinline gcuse(x) = x # because of use of `pointer`, need to mark gc-use end explicitly
 
 const magic_base = "Julia data file (HDF5), version "
@@ -43,13 +41,11 @@ struct JldDatatype
 end
 sizeof(T::JldDatatype) = sizeof(T.dtype)
 
-const IdDict = @static VERSION < v"0.7.0-DEV.3439" ? Base.ObjectIdDict : Base.IdDict{Any,Any}
-
 struct JldWriteSession
     persist::Vector{Any} # To hold objects that should not be garbage-collected
-    h5ref::IdDict        # To hold mapping from Object/Array -> HDF5ReferenceObject
+    h5ref::Base.IdDict{Any,Any}        # To hold mapping from Object/Array -> HDF5ReferenceObject
 
-    JldWriteSession() = new(Any[], IdDict())
+    JldWriteSession() = new(Any[], Base.IdDict{Any,Any}())
 end
 
 # The Julia Data file type
@@ -215,11 +211,7 @@ function jldopen(filename::AbstractString, rd::Bool, wr::Bool, cr::Bool, tr::Boo
                         r = read(fj, pathrequire)
                         for fn in r
                             mod = path2modsym(fn)
-                            if VERSION < v"0.7.0-DEV.1877"
-                                eval(Expr(:import, mod))
-                            else
-                                Core.eval(Main, Expr(:import, Expr(:., mod)))
-                            end
+                            Core.eval(Main, Expr(:import, Expr(:., mod)))
                         end
                     end
                 end
@@ -604,7 +596,7 @@ function h5convert_array(f::JldFile, data::Array,
                          dtype::JldDatatype, wsession::JldWriteSession)
     if dtype == JLD_REF_TYPE
         # For type stability, return as Vector{UInt8}
-        refs = VERSION < v"0.7.0-DEV.2083" ? reinterpret(UInt8,Vector{HDF5ReferenceObj}(undef, length(data))) : Vector{UInt8}(undef, length(data)*sizeof(HDF5ReferenceObj))
+        refs = Vector{UInt8}(undef, length(data)*sizeof(HDF5ReferenceObj))
         arefs = reinterpret(HDF5ReferenceObj, refs)
         for i = 1:length(data)
             if isassigned(data, i)
@@ -844,7 +836,7 @@ writeas(x::Core.SimpleVector) = SimpleVectorWrapper([x...])
 
 # function to convert string(mod::Module) back to mod::Module
 function modname2mod(modname::AbstractString)
-    mparse(modname == "Main" ? modname : string("Main.", modname))
+    Meta.parse(modname == "Main" ? modname : string("Main.", modname))
 end
 
 
@@ -872,13 +864,11 @@ end
 readas(grs::GlobalRefSerializer) = GlobalRef(eval(modname2mod(grs.mod)), grs.name)
 writeas(gr::GlobalRef) = GlobalRefSerializer(gr)
 
-# StackFrame (Null the LambdaInfo in 0.5)
-const null_methodinstance = @static VERSION < v"0.7.0-DEV.2444" ? Nullable{Core.MethodInstance}() : nothing
 JLD.writeas(data::Base.StackTraces.StackFrame) =
     Base.StackTraces.StackFrame(data.func,
                     data.file,
                     data.line,
-                    null_methodinstance,
+                    nothing,
                     data.from_c,
                     data.inlined,
                     data.pointer)
@@ -902,13 +892,8 @@ function is_valid_type_ex(e::Expr)
     elseif e.head === :where
         return is_valid_type_ex(e.args[1])
     elseif e.head === :let && length(e.args) == 2
-        @static if VERSION < v"0.7.0-DEV.1671"
-            return is_valid_type_ex(e.args[1]) &&
-                   is_valid_type_ex(e.args[2].args[2])
-        else
-            return is_valid_type_ex(e.args[2]) &&
-                   is_valid_type_ex(e.args[1].args[2])
-        end
+        return is_valid_type_ex(e.args[2]) &&
+               is_valid_type_ex(e.args[1].args[2])
     elseif e.head == :call
         f = e.args[1]
         if f isa Expr
@@ -939,11 +924,7 @@ function fixtypes(typ)
     typ = fixtypes(typ, whereall)
     while !isempty(whereall)
         var = pop!(whereall)
-        @static if VERSION < v"0.7.0-DEV.1671"
-            typ = Expr(:let, Expr(:call, Expr(:core, :UnionAll), var.args[1], typ), var)
-        else
-            typ = Expr(:let, var, Expr(:call, Expr(:core, :UnionAll), var.args[1], typ))
-        end
+        typ = Expr(:let, var, Expr(:call, Expr(:core, :UnionAll), var.args[1], typ))
     end
     return typ
 end
@@ -988,11 +969,7 @@ function fixtypes(typ::Expr, whereall::Vector{Any})
         # assume literal TypeVar should work like `T{<:S}`
         while !isempty(whereall)
             var = pop!(whereall)
-            @static if VERSION < v"0.7.0-DEV.1671"
-                typ = Expr(:let, Expr(:call, Expr(:core, :UnionAll), var.args[1], typ), var)
-            else
-                typ = Expr(:let, var, Expr(:call, Expr(:core, :UnionAll), var.args[1], typ))
-            end
+            typ = Expr(:let, var, Expr(:call, Expr(:core, :UnionAll), var.args[1], typ))
         end
     end
     return typ
@@ -1001,7 +978,7 @@ end
 function _julia_type(s::AbstractString)
     typ = get(_typedict, s, UnconvertedType)
     if typ == UnconvertedType
-        sp = mparse(s, raise=false)
+        sp = Meta.parse(s, raise=false)
         if (isa(sp, Expr) && (sp.head == :error || sp.head == :continue || sp.head == :incomplete))
             println("error parsing type string ", s)
             eval(sp)
@@ -1074,7 +1051,7 @@ function full_typename(io::IO, ::JldFile, x)
     # A different implementation will be required to support custom immutables
     # or things as simple as Int16(1).
     s = sprint(show, x)
-    if isbits(x) && mparse(s) === x && !isa(x, Tuple)
+    if isbits(x) && Meta.parse(s) === x && !isa(x, Tuple)
         print(io, s)
     else
         error("type parameters with objects of type ", typeof(x), " are currently unsupported")
@@ -1277,11 +1254,7 @@ end
 # As of this version, packages aren't loaded into Main by default, so the root
 # module check verifies that packages are still identified as being top level
 # even if a binding to them is not present in Main.
-@static if VERSION >= v"0.7.0-DEV.1877"
-    _istoplevel(m::Module) = module_parent(m) == Main || Base.is_root_module(m)
-else
-    _istoplevel(m::Module) = module_parent(m) == Main
-end
+_istoplevel(m::Module) = module_parent(m) == Main || Base.is_root_module(m)
 
 function addrequire(file::JldFile, mod::Module)
     _istoplevel(mod) || error("must be a toplevel module")
