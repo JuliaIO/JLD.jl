@@ -2,11 +2,14 @@ __precompile__()
 
 module JLD
 using HDF5, FileIO, Compat
+using Compat.Printf
+using Compat: IOBuffer, @warn
 
 import HDF5: close, dump, exists, file, getindex, setindex!, g_create, g_open, o_delete, name, names, read, write,
              HDF5ReferenceObj, HDF5BitsKind, ismmappable, readmmap
-import Base: convert, length, endof, show, done, next, ndims, start, delete!, eltype,
-             size, sizeof, unsafe_convert, datatype_pointerfree
+import Base: convert, length, show, ndims, delete!, eltype,
+             size, sizeof, unsafe_convert, datatype_pointerfree, iterate
+import Compat: lastindex
 import LegacyStrings: UTF16String
 
 @noinline gcuse(x) = x # because of use of `pointer`, need to mark gc-use end explicitly
@@ -22,8 +25,8 @@ const name_type_attr = "julia type"
 const BitsKindOrString = Union{HDF5BitsKind, String}
 
 function julia_type(s::AbstractString)
-    s = replace(s, r"ASCIIString|UTF8String|ByteString", "String")
-    s = replace(s, "Base.UTF16String", "LegacyStrings.UTF16String")
+    s = replace(s, r"ASCIIString|UTF8String|ByteString" => "String")
+    s = replace(s, "Base.UTF16String" => "LegacyStrings.UTF16String")
     _julia_type(s)
 end
 
@@ -40,9 +43,9 @@ sizeof(T::JldDatatype) = sizeof(T.dtype)
 
 struct JldWriteSession
     persist::Vector{Any} # To hold objects that should not be garbage-collected
-    h5ref::ObjectIdDict  # To hold mapping from Object/Array -> HDF5ReferenceObject
+    h5ref::Base.IdDict{Any,Any}        # To hold mapping from Object/Array -> HDF5ReferenceObject
 
-    JldWriteSession() = new(Any[], ObjectIdDict())
+    JldWriteSession() = new(Any[], Base.IdDict{Any,Any}())
 end
 
 # The Julia Data file type
@@ -73,7 +76,7 @@ mutable struct JldFile <: HDF5.DataFile
                 Dict{HDF5Datatype,Type}(), Dict{Type,HDF5Datatype}(),
                 Dict{HDF5ReferenceObj,WeakRef}(), String[])
         if toclose
-            finalizer(f, close)
+            @compat finalizer(close, f)
         end
         f
     end
@@ -132,7 +135,7 @@ function close(f::JldFile)
         if f.writeheader
             magic = zeros(UInt8, 512)
             tmp = string(magic_base, f.version)
-            magic[1:length(tmp)] = Vector{UInt8}(tmp)
+            magic[1:length(tmp)] = Vector{UInt8}(codeunits(tmp))
             rawfid = open(f.plain.filename, "r+")
             write(rawfid, magic)
             close(rawfid)
@@ -188,15 +191,15 @@ function jldopen(filename::AbstractString, rd::Bool, wr::Bool, cr::Bool, tr::Boo
             if sz < 512
                 error("File size indicates $filename cannot be a Julia data file")
             end
-            magic = Vector{UInt8}(512)
+            magic = Vector{UInt8}(undef, 512)
             rawfid = open(filename, "r")
             try
                 magic = read!(rawfid, magic)
             finally
                 close(rawfid)
             end
-            if startswith(magic, Vector{UInt8}(magic_base))
-                version = convert(VersionNumber, unsafe_string(pointer(magic) + length(magic_base)))
+            if length(magic) ≥ ncodeunits(magic_base) && view(magic, 1:ncodeunits(magic_base)) == Vector{UInt8}(codeunits(magic_base))
+                version = VersionNumber(unsafe_string(pointer(magic) + length(magic_base)))
                 gcuse(magic)
                 if version < v"0.1.0"
                     fj = JLD00.jldopen(filename, rd, wr, cr, tr, ff; mmaparrays=mmaparrays)
@@ -208,7 +211,7 @@ function jldopen(filename::AbstractString, rd::Bool, wr::Bool, cr::Bool, tr::Boo
                         r = read(fj, pathrequire)
                         for fn in r
                             mod = path2modsym(fn)
-                            eval(Expr(:import, mod))
+                            Core.eval(Main, Expr(:import, Expr(:., mod)))
                         end
                     end
                 end
@@ -327,9 +330,8 @@ ismmappable(obj::JldDataset) = ismmappable(obj.plain)
 readmmap(obj::JldDataset, args...) = readmmap(obj.plain, args...)
 setindex!(parent::Union{JldFile, JldGroup}, val, path::String) = write(parent, path, val)
 
-start(parent::Union{JldFile, JldGroup}) = (names(parent), 1)
-done(parent::Union{JldFile, JldGroup}, state) = state[2] > length(state[1])
-next(parent::Union{JldFile, JldGroup}, state) = parent[state[1][state[2]]], (state[1], state[2]+1)
+Base.iterate(parent::Union{JldFile, JldGroup}, state=(names(parent), 1)) = state[2] > length(state[1]) ? nothing :
+                                                     (parent[state[1][state[2]]], (state[1], state[2]+1))
 
 
 ### Julia data file format implementation ###
@@ -377,7 +379,7 @@ function read(obj::JldDataset)
             end
             if exists(obj, "dims")
                 dims = a_read(obj.plain, "dims")
-                return Array{T}(dims...)
+                return Array{T}(undef, dims...)
             else
                 return T[]
             end
@@ -391,7 +393,7 @@ end
 read_scalar(obj::JldDataset, dtype::HDF5Datatype, ::Type{T}) where {T<:BitsKindOrString} =
     read(obj.plain, T)
 function read_scalar(obj::JldDataset, dtype::HDF5Datatype, T::Type)
-    buf = Vector{UInt8}(sizeof(dtype))
+    buf = Vector{UInt8}(undef, sizeof(dtype))
     HDF5.readarray(obj.plain, dtype.id, buf)
     sc = readas(jlconvert(T, file(obj), pointer(buf)))
     gcuse(buf)
@@ -417,7 +419,7 @@ function read_vals(obj::JldDataset, dtype::HDF5Datatype, T::Union{Type{S}, Type{
     if obj.file.mmaparrays && HDF5.iscontiguous(obj.plain) && dsel_id == HDF5.H5S_ALL
         readmmap(obj.plain, Array{T})
     else
-        out = Array{T}(dims)
+        out = Array{T}(undef, dims)
         HDF5.h5d_read(obj.plain.id, dtype.id, dspace_id, dsel_id, HDF5.H5P_DEFAULT, out)
         out
     end
@@ -426,14 +428,14 @@ end
 # Arrays of immutables/bitstypes
 function read_vals(obj::JldDataset, dtype::HDF5Datatype, T::Type, dspace_id::HDF5.Hid,
                    dsel_id::HDF5.Hid, dims::Tuple{Vararg{Int}})
-    out = Array{T}(dims)
+    out = Array{T}(undef, dims)
     # Empty objects don't need to be read at all
     T.size == 0 && !T.mutable && return out
 
     # Read from file
     n = prod(dims)
     h5sz = sizeof(dtype)
-    buf = Vector{UInt8}(h5sz*n)
+    buf = Vector{UInt8}(undef, h5sz*n)
     HDF5.h5d_read(obj.plain.id, dtype.id, dspace_id, dsel_id, HDF5.H5P_DEFAULT, buf)
 
     f = file(obj)
@@ -463,10 +465,10 @@ end
 # Arrays of references
 function read_refs(obj::JldDataset, ::Type{T}, dspace_id::HDF5.Hid, dsel_id::HDF5.Hid,
                    dims::Tuple{Vararg{Int}}) where T
-    refs = Array{HDF5ReferenceObj}(dims)
+    refs = Array{HDF5ReferenceObj}(undef, dims)
     HDF5.h5d_read(obj.plain.id, HDF5.H5T_STD_REF_OBJ, dspace_id, dsel_id, HDF5.H5P_DEFAULT, refs)
 
-    out = Array{T}(dims)
+    out = Array{T}(undef, dims)
     f = file(obj)
     for i = 1:length(refs)
         if refs[i] != HDF5.HDF5ReferenceObj_NULL
@@ -481,7 +483,7 @@ function refarray_eltype(obj::JldDataset)
     typename = a_read(obj.plain, "julia eltype")
     T = julia_type(typename)
     if T == UnsupportedType
-        warn("type $typename not present in workspace; interpreting array as Array{Any}")
+        @warn("type $typename not present in workspace; interpreting array as Array{Any}")
         return Any
     end
     return T
@@ -593,7 +595,7 @@ function h5convert_array(f::JldFile, data::Array,
                          dtype::JldDatatype, wsession::JldWriteSession)
     if dtype == JLD_REF_TYPE
         # For type stability, return as Vector{UInt8}
-        refs = VERSION < v"0.7.0-DEV.2083" ? reinterpret(UInt8,Vector{HDF5ReferenceObj}(length(data))) : Vector{UInt8}(length(data)*sizeof(HDF5ReferenceObj))
+        refs = Vector{UInt8}(undef, length(data)*sizeof(HDF5ReferenceObj))
         arefs = reinterpret(HDF5ReferenceObj, refs)
         for i = 1:length(data)
             if isassigned(data, i)
@@ -621,7 +623,7 @@ end
                          dtype::JldDatatype, wsession::JldWriteSession)
     sz = HDF5.h5t_get_size(dtype)
     n = length(data)
-    buf = Vector{UInt8}(sz*n)
+    buf = Vector{UInt8}(undef, sz*n)
     offset = pointer(buf)
     for i = 1:n
         h5convert!(offset, f, data[i], wsession)
@@ -694,7 +696,7 @@ function write_compound(parent::Union{JldFile, JldGroup}, name::String,
     dtype = h5type(f, T, true)
     gen_h5convert(f, T)
 
-    buf = Vector{UInt8}(HDF5.h5t_get_size(dtype))
+    buf = Vector{UInt8}(undef, HDF5.h5t_get_size(dtype))
     h5convert!(pointer(buf), file(parent), s, wsession)
     gcuse(buf)
 
@@ -714,7 +716,7 @@ end
 size(dset::JldDataset) = size(dset.plain)
 size(dset::JldDataset, d) = size(dset.plain, d)
 length(dset::JldDataset) = prod(size(dset))
-endof(dset::JldDataset) = length(dset)
+lastindex(dset::JldDataset) = length(dset)
 ndims(dset::JldDataset) = ndims(dset.plain)
 
 ### Read/write via getindex/setindex! ###
@@ -782,20 +784,20 @@ writeas(x) = x
 # Wrapper for associative keys
 # We write this instead of the associative to avoid dependence on the
 # Julia hash function
-struct AssociativeWrapper{K,V,T<:Associative}
+struct AssociativeWrapper{K,V,T<:AbstractDict}
     keys::Vector{K}
     values::Vector{V}
 end
 
 readas(x::AssociativeWrapper{K,V,T}) where {K,V,T} = convert(T, x)
-function writeas(x::T) where T<:Associative
+function writeas(x::T) where T<:AbstractDict
     K, V = destructure(eltype(x))
     convert(AssociativeWrapper{K,V,T}, x)
 end
 destructure(::Type{Pair{K,V}}) where {K,V} = K, V  # not inferrable, julia#10880
 
 # Special case for associative, to rehash keys
-function convert(::Type{T}, x::AssociativeWrapper{K,V,T}) where {K,V,T<:Associative}
+function convert(::Type{T}, x::AssociativeWrapper{K,V,T}) where {K,V,T<:AbstractDict}
     ret = T()
     keys = x.keys
     values = x.values
@@ -809,10 +811,10 @@ function convert(::Type{T}, x::AssociativeWrapper{K,V,T}) where {K,V,T<:Associat
     ret
 end
 
-function convert(::Type{AssociativeWrapper{K,V,T}}, d::Associative) where {K,V,T}
+function convert(::Type{AssociativeWrapper{K,V,T}}, d::AbstractDict) where {K,V,T}
     n = length(d)
-    ks = Vector{K}(n)
-    vs = Vector{V}(n)
+    ks = Vector{K}(undef, n)
+    vs = Vector{V}(undef, n)
     i = 0
     for (k,v) in d
         ks[i+=1] = k
@@ -829,11 +831,11 @@ end
 
 # Special case for SimpleVector
 readas(x::SimpleVectorWrapper) = Core.svec(x.elements...)
-writeas(x::SimpleVector) = SimpleVectorWrapper([x...])
+writeas(x::Core.SimpleVector) = SimpleVectorWrapper([x...])
 
 # function to convert string(mod::Module) back to mod::Module
 function modname2mod(modname::AbstractString)
-    parse(modname == "Main" ? modname : string("Main.", modname))
+    Meta.parse(modname == "Main" ? modname : string("Main.", modname))
 end
 
 
@@ -861,13 +863,11 @@ end
 readas(grs::GlobalRefSerializer) = GlobalRef(eval(modname2mod(grs.mod)), grs.name)
 writeas(gr::GlobalRef) = GlobalRefSerializer(gr)
 
-# StackFrame (Null the LambdaInfo in 0.5)
-# or Core.MethodInstance in 0.6
-JLD.writeas(data::StackFrame) =
-    Base.StackFrame(data.func,
+JLD.writeas(data::Base.StackTraces.StackFrame) =
+    Base.StackTraces.StackFrame(data.func,
                     data.file,
                     data.line,
-                    Nullable{Core.MethodInstance}(),
+                    nothing,
                     data.from_c,
                     data.inlined,
                     data.pointer)
@@ -877,22 +877,22 @@ JLD.writeas(data::StackFrame) =
 const _where_macrocall = Symbol("@where")
 function expand_where_macro(e::Expr)
     e.head = :where
-    shift!(e.args)
-    Compat.macros_have_sourceloc && shift!(e.args)
+    popfirst!(e.args)
+    Compat.macros_have_sourceloc && popfirst!(e.args)
     return true
 end
 
 is_valid_type_ex(s::Symbol) = true
 is_valid_type_ex(s::QuoteNode) = true
-is_valid_type_ex(s) = isbits(typeof(s))
+is_valid_type_ex(s) = isbitstype(typeof(s))
 function is_valid_type_ex(e::Expr)
     if e.head === :curly || e.head == :tuple || e.head == :.
         return all(is_valid_type_ex, e.args)
     elseif e.head === :where
         return is_valid_type_ex(e.args[1])
     elseif e.head === :let && length(e.args) == 2
-        return is_valid_type_ex(e.args[1]) &&
-               is_valid_type_ex(e.args[2].args[2])
+        return is_valid_type_ex(e.args[2]) &&
+               is_valid_type_ex(e.args[1].args[2])
     elseif e.head == :call
         f = e.args[1]
         if f isa Expr
@@ -912,7 +912,8 @@ const typemap_Core = Dict(
     :Uint16 => :Uint16,
     :Uint32 => :UInt32,
     :Uint64 => :UInt64,
-    :Nothing => :Void
+    :Nothing => Symbol(Nothing), # translates to :Void or :Nothing via Compat
+    :Void => Symbol(Nothing)
 )
 
 const _typedict = Dict{String,Type}()
@@ -922,7 +923,7 @@ function fixtypes(typ)
     typ = fixtypes(typ, whereall)
     while !isempty(whereall)
         var = pop!(whereall)
-        typ = Expr(:let, Expr(:call, Expr(:core, :UnionAll), var.args[1], typ), var)
+        typ = Expr(:let, var, Expr(:call, Expr(:core, :UnionAll), var.args[1], typ))
     end
     return typ
 end
@@ -967,7 +968,7 @@ function fixtypes(typ::Expr, whereall::Vector{Any})
         # assume literal TypeVar should work like `T{<:S}`
         while !isempty(whereall)
             var = pop!(whereall)
-            typ = Expr(:let, Expr(:call, Expr(:core, :UnionAll), var.args[1], typ), var)
+            typ = Expr(:let, var, Expr(:call, Expr(:core, :UnionAll), var.args[1], typ))
         end
     end
     return typ
@@ -976,7 +977,7 @@ end
 function _julia_type(s::AbstractString)
     typ = get(_typedict, s, UnconvertedType)
     if typ == UnconvertedType
-        sp = parse(s, raise=false)
+        sp = Meta.parse(s, raise=false)
         if (isa(sp, Expr) && (sp.head == :error || sp.head == :continue || sp.head == :incomplete))
             println("error parsing type string ", s)
             eval(sp)
@@ -993,9 +994,10 @@ function julia_type(e::Union{Symbol, Expr})
     if is_valid_type_ex(e)
         try # `try` needed to catch undefined symbols
             # `e` should be fully qualified, and thus reachable from Main
-            typ = eval(Main, e)
+            typ = Core.eval(Main, e)
             typ == Type && return Type
             isa(typ, Type) && return typ
+        catch
         end
     end
     return UnsupportedType
@@ -1048,7 +1050,7 @@ function full_typename(io::IO, ::JldFile, x)
     # A different implementation will be required to support custom immutables
     # or things as simple as Int16(1).
     s = sprint(show, x)
-    if isbits(x) && parse(s) === x && !isa(x, Tuple)
+    if isbits(x) && Meta.parse(s) === x && !isa(x, Tuple)
         print(io, s)
     else
         error("type parameters with objects of type ", typeof(x), " are currently unsupported")
@@ -1056,7 +1058,7 @@ function full_typename(io::IO, ::JldFile, x)
 end
 function full_typename(io::IO, ::JldFile, x::Symbol)
     s = string(x)
-    if contains(s, " ")
+    if occursin(" ", s)
         # escape spaces
         print_escaped(io, string("symbol(\"", string(x), "\")"), " ")
     else
@@ -1097,7 +1099,7 @@ function full_typename(io::IO, file::JldFile, jltype::DataType)
     end
 end
 function full_typename(file::JldFile, x)
-    io = IOBuffer(Vector{UInt8}(64), true, true)
+    io = IOBuffer(Vector{UInt8}(undef, 64), read=true, write=true)
     truncate(io, 0)
     full_typename(io, file, x)
     String(take!(io))
@@ -1125,7 +1127,7 @@ function save_write(f, s, vname, wsession::JldWriteSession)
             write(f, s, vname)
         catch e
             if isa(e, PointerException)
-                warn("Skipping $vname because it contains a pointer")
+                @warn("Skipping $vname because it contains a pointer")
             end
         end
     end
@@ -1134,7 +1136,7 @@ end
 macro save(filename, vars...)
     if isempty(vars)
         # Save all variables in the current module
-        writeexprs = Vector{Expr}(0)
+        writeexprs = Vector{Expr}(undef, 0)
         m = current_module()
         for vname in names(m)
             s = string(vname)
@@ -1146,7 +1148,7 @@ macro save(filename, vars...)
             end
         end
     else
-        writeexprs = Vector{Expr}(length(vars))
+        writeexprs = Vector{Expr}(undef, length(vars))
         for i = 1:length(vars)
             writeexprs[i] = :(write(f, $(string(vars[i])), $(esc(vars[i])), wsession))
         end
@@ -1166,10 +1168,10 @@ end
 macro load(filename, vars...)
     if isempty(vars)
         if isa(filename, Expr)
-            warn("""@load-ing a file without specifying the variables to be loaded may produce
-                    unexpected behavior unless the file is specified as a string literal. Future
-                    versions of JLD will require that the file is specified as a string literal
-                    in this case.""")
+            @warn("""@load-ing a file without specifying the variables to be loaded may produce
+                     unexpected behavior unless the file is specified as a string literal. Future
+                     versions of JLD will require that the file is specified as a string literal
+                     in this case.""")
             filename = eval(current_module(), filename)
         end
         # Load all variables in the top level of the file
@@ -1203,7 +1205,7 @@ macro load(filename, vars...)
 end
 
 # Save all the key-value pairs in the dict as top-level variables of the JLD
-function FileIO.save(f::File{format"JLD"}, dict::Associative; compatible::Bool=false, compress::Bool=false)
+function FileIO.save(f::File{format"JLD"}, dict::AbstractDict; compatible::Bool=false, compress::Bool=false)
     jldopen(FileIO.filename(f), "w"; compatible=compatible, compress=compress) do file
         wsession = JldWriteSession()
         for (k,v) in dict
@@ -1251,11 +1253,7 @@ end
 # As of this version, packages aren't loaded into Main by default, so the root
 # module check verifies that packages are still identified as being top level
 # even if a binding to them is not present in Main.
-if VERSION >= v"0.7.0-DEV.1877"
-    _istoplevel(m::Module) = module_parent(m) == Main || Base.is_root_module(m)
-else
-    _istoplevel(m::Module) = module_parent(m) == Main
-end
+_istoplevel(m::Module) = module_parent(m) == Main || Base.is_root_module(m)
 
 function addrequire(file::JldFile, mod::Module)
     _istoplevel(mod) || error("must be a toplevel module")
@@ -1271,7 +1269,7 @@ function addrequire(file::JldFile, modsym::Symbol)
 end
 
 function addrequire(file::JldFile, filename::AbstractString)
-    warn("\"addrequire(file, filename)\" is deprecated, please use \"addrequire(file, module)\"")
+    @warn("\"addrequire(file, filename)\" is deprecated, please use \"addrequire(file, module)\"")
     addrequire(file, path2modsym(filename))
 end
 
