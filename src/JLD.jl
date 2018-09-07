@@ -7,8 +7,8 @@ using Compat: IOBuffer, @warn
 
 import HDF5: close, dump, exists, file, getindex, setindex!, g_create, g_open, o_delete, name, names, read, write,
              HDF5ReferenceObj, HDF5BitsKind, ismmappable, readmmap
-import Base: convert, length, show, done, next, ndims, start, delete!, eltype,
-             size, sizeof, unsafe_convert, datatype_pointerfree
+import Base: convert, length, show, ndims, delete!, eltype,
+             size, sizeof, unsafe_convert, datatype_pointerfree, iterate
 import Compat: lastindex
 import LegacyStrings: UTF16String
 
@@ -330,9 +330,8 @@ ismmappable(obj::JldDataset) = ismmappable(obj.plain)
 readmmap(obj::JldDataset, args...) = readmmap(obj.plain, args...)
 setindex!(parent::Union{JldFile, JldGroup}, val, path::String) = write(parent, path, val)
 
-start(parent::Union{JldFile, JldGroup}) = (names(parent), 1)
-done(parent::Union{JldFile, JldGroup}, state) = state[2] > length(state[1])
-next(parent::Union{JldFile, JldGroup}, state) = parent[state[1][state[2]]], (state[1], state[2]+1)
+Base.iterate(parent::Union{JldFile, JldGroup}, state=(names(parent), 1)) = state[2] > length(state[1]) ? nothing :
+                                                     (parent[state[1][state[2]]], (state[1], state[2]+1))
 
 
 ### Julia data file format implementation ###
