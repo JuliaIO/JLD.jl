@@ -895,7 +895,7 @@ end
 
 is_valid_type_ex(s::Symbol) = true
 is_valid_type_ex(s::QuoteNode) = true
-is_valid_type_ex(s) = isbits(typeof(s))
+is_valid_type_ex(s) = isbitstype(typeof(s))
 function is_valid_type_ex(e::Expr)
     if e.head === :curly || e.head == :tuple || e.head == :.
         return all(is_valid_type_ex, e.args)
