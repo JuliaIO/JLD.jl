@@ -3,17 +3,21 @@
 ###############################################
 
 module JLD00
-using HDF5, LegacyStrings
+using HDF5, LegacyStrings, Compat
+using Compat.Printf
+using Compat: @warn
 # Add methods to...
 import HDF5: close, dump, exists, file, getindex, setindex!, g_create, g_open, o_delete, name, names, read, size, write,
              HDF5ReferenceObj, HDF5BitsKind, ismmappable, readmmap
-import Base: length, endof, show, done, next, start, delete!
+import Base: length, show, done, next, start, delete!
+import Compat: lastindex
+const mparse = @static VERSION ≥ v"0.7.0-DEV.2437" ? Meta.parse : Base.parse
 import ..JLD
 
 # See julia issue #8907
 replacements = Any[]
-push!(replacements, :(s = replace(s, r"Uint(?=\d{1,3})", "UInt")))
-push!(replacements, :(s = replace(s, r"ASCIIString|UTF8String|ByteString", "String")))
+push!(replacements, :(s = replace(s, r"Uint(?=\d{1,3})" => "UInt")))
+push!(replacements, :(s = replace(s, r"ASCIIString|UTF8String|ByteString" => "String")))
 ex = Expr(:block, replacements...)
 @eval function julia_type(s::AbstractString)
     $ex
@@ -48,7 +52,7 @@ mutable struct JldFile <: HDF5.DataFile
                      writeheader::Bool=false, mmaparrays::Bool=false)
         f = new(plain, version, toclose, writeheader, mmaparrays)
         if toclose
-            finalizer(f, close)
+            @compat finalizer(close, f)
         end
         f
     end
@@ -73,7 +77,7 @@ function close(f::JldFile)
         if f.writeheader
             magic = zeros(UInt8, 512)
             tmp = string(magic_base, f.version)
-            magic[1:length(tmp)] = Vector{UInt8}(tmp)
+            magic[1:length(tmp)] = Vector{UInt8}(codeunits(tmp))
             rawfid = open(f.plain.filename, "r+")
             write(rawfid, magic)
             close(rawfid)
@@ -117,14 +121,14 @@ function jldopen(filename::AbstractString, rd::Bool, wr::Bool, cr::Bool, tr::Boo
             if sz < 512
                 error("File size indicates $filename cannot be a Julia data file")
             end
-            magic = Vector{UInt8}(512)
+            magic = Vector{UInt8}(undef, 512)
             rawfid = open(filename, "r")
             try
                 magic = read!(rawfid, magic)
             finally
                 close(rawfid)
             end
-            if startswith(magic, Vector{UInt8}(magic_base))
+            if length(magic) ≥ ncodeunits(magic_base) && view(magic, 1:ncodeunits(magic_base)) == Vector{UInt8}(codeunits(magic_base))
                 f = HDF5.h5f_open(filename, wr ? HDF5.H5F_ACC_RDWR : HDF5.H5F_ACC_RDONLY, pa.id)
                 version = unsafe_string(pointer(magic) + length(magic_base))
                 fj = JldFile(HDF5File(f, filename), version, true, true, mmaparrays)
@@ -274,9 +278,9 @@ function read(obj::Union{JldFile, JldDataset})
                     modnames = a_read(objtype.plain, "Module")
                     mod = Main
                     for mname in modnames
-                        mod = eval(mod, Symbol(mname))
+                        mod = Core.eval(mod, Symbol(mname))
                     end
-                    T = eval(mod, Symbol(typename))
+                    T = Core.eval(mod, Symbol(typename))
                 finally
                     close(objtype)
                 end
@@ -366,7 +370,7 @@ function read(obj::JldDataset, ::Type{Array{Array{T,N},M}}) where {T<:HDF5BitsKi
 end
 
 # Nothing
-read(obj::JldDataset, ::Type{Void}) = nothing
+read(obj::JldDataset, ::Type{Nothing}) = nothing
 read(obj::JldDataset, ::Type{Bool}) = read(obj, UInt8) != 0
 
 # Types
@@ -389,7 +393,7 @@ function read(obj::JldDataset, ::Type{Complex{T}}) where T
 end
 function read(obj::JldDataset, ::Type{Array{T,N}}) where {T<:Complex,N}
     A = read(obj, Array{realtype(T)})
-    reinterpret(T, A, ntuple(i->size(A, i+1), ndims(A)-1))
+    reshape(reinterpret(T, vec(A)), ntuple(i->size(A, i+1), ndims(A)-1))
 end
 
 # Symbol
@@ -416,7 +420,7 @@ function read_tuple(obj::JldDataset, indices::AbstractVector)
 end
 
 # Dict
-function read(obj::JldDataset, ::Type{T}) where T<:Associative
+function read(obj::JldDataset, ::Type{T}) where T<:AbstractDict
     kv = getrefs(obj, Any)
     ret = T()
     for (cn, c) in zip(kv[1], kv[2])
@@ -442,9 +446,9 @@ function read(obj::JldDataset, T::DataType)
     if exists(obj, "TypeParameters")
         params = a_read(obj.plain, "TypeParameters")
         if !isempty(params)
-            p = Vector{Any}(length(params))
+            p = Vector{Any}(undef, length(params))
             for i = 1:length(params)
-                p[i] = eval(current_module(), parse(params[i]))
+                p[i] = Core.eval(@__MODULE__, mparse(params[i]))
             end
             T = T.name.wrapper
             T = T{p...}
@@ -459,7 +463,7 @@ function read(obj::JldDataset, T::DataType)
             error("Wrong number of fields")
         end
         if !T.mutable
-            x = ccall(:jl_new_structv, Any, (Any,Ptr{Void},UInt32), T, v, length(fieldnames(T)))
+            x = ccall(:jl_new_structv, Any, (Any,Ptr{Cvoid},UInt32), T, v, length(fieldnames(T)))
         else
             x = ccall(:jl_new_struct_uninit, Any, (Any,), T)
             for i = 1:length(v)
@@ -480,7 +484,7 @@ end
 # Read an array of references
 function getrefs(obj::JldDataset, ::Type{T}) where T
     refs = read(obj.plain, Array{HDF5ReferenceObj})
-    out = Array{T}(size(refs))
+    out = Array{T}(undef, size(refs))
     f = file(obj)
     for i = 1:length(refs)
         if refs[i] != HDF5.HDF5ReferenceObj_NULL
@@ -508,7 +512,7 @@ function getrefs(obj::JldDataset, ::Type{T}, indices::Union{Integer, AbstractVec
             close(ref)
         end
     else
-        out = Array{T}(size(refs))
+        out = Array{T}(undef, size(refs))
         for i = 1:length(refs)
             ref = f[refs[i]]
             try
@@ -567,7 +571,7 @@ end
 
 
 # Write nothing
-function write(parent::Union{JldFile, JldGroup}, name::String, n::Void, astype::String)
+function write(parent::Union{JldFile, JldGroup}, name::String, n::Nothing, astype::String)
     local dspace, dset
     try
         dspace = dataspace(nothing)
@@ -579,7 +583,7 @@ function write(parent::Union{JldFile, JldGroup}, name::String, n::Void, astype::
         close(dset)
     end
 end
-write(parent::Union{JldFile, JldGroup}, name::String, n::Void) = write(parent, name, n, "Nothing")
+write(parent::Union{JldFile, JldGroup}, name::String, n::Nothing) = write(parent, name, n, "Nothing")
 
 # Types
 # the first is needed to avoid an ambiguity warning
@@ -639,7 +643,7 @@ function write(parent::Union{JldFile, JldGroup}, path::String, data::Array{T}, a
     grefname = name(gref)
     try
         # Write the items to the reference group
-        refs = Array{HDF5ReferenceObj}(size(data))
+        refs = Array{HDF5ReferenceObj}(undef, size(data))
         # pad with zeros to keep in order
         nd = ndigits(length(data))
         z = "0"
@@ -680,15 +684,15 @@ write(parent::Union{JldFile, JldGroup}, path::String, data::Array{T}) where {T} 
 # Tuple
 write(parent::Union{JldFile, JldGroup}, name::String, t::Tuple) = write(parent, name, Any[t...], "Tuple")
 
-# Associative (Dict)
-function write(parent::Union{JldFile, JldGroup}, name::String, d::Associative)
+# AbstractDict
+function write(parent::Union{JldFile, JldGroup}, name::String, d::AbstractDict)
     tn = full_typename(typeof(d))
     if tn == "DataFrame"
         return write_composite(parent, name, d)
     end
     n = length(d)
-    ks = Vector{keytype(d)}(n)
-    vs = Vector{valtype(d)}(n)
+    ks = Vector{keytype(d)}(undef, n)
+    vs = Vector{valtype(d)}(undef, n)
     i = 0
     for (k,v) in d
         ks[i+=1] = k
@@ -761,7 +765,7 @@ function write_composite(parent::Union{JldFile, JldGroup}, name::String, s; root
         close(gtypes)
     end
     # Write the data
-    v = Vector{Any}(length(n))
+    v = Vector{Any}(undef, length(n))
     for i = 1:length(v)
         if isdefined(s, n[i])
             v[i] = getfield(s, n[i])
@@ -806,10 +810,10 @@ function has_pointer_field(obj, name)
         if isdefined(obj, fieldname)
             x = getfield(obj, fieldname)
             if isa(x, Ptr)
-                warn("Skipping $name because field \"$fieldname\" is a pointer")
+                @warn("Skipping $name because field \"$fieldname\" is a pointer")
                 return true
             end
-            if !isa(x, Associative) && has_pointer_field(x, name)
+            if !isa(x, AbstractDict) && has_pointer_field(x, name)
                 return true
             end
         end
@@ -829,7 +833,7 @@ function size(dset::JldDataset)
     end
     # Convert to Julia type
     T = julia_type(typename)
-    if T == CompositeKind || T <: Associative || T == Expr
+    if T == CompositeKind || T <: AbstractDict || T == Expr
         return ()
     elseif T <: Complex
         return ()
@@ -840,7 +844,7 @@ function size(dset::JldDataset)
     size(dset.plain)
 end
 length(dset::JldDataset) = prod(size(dset))
-endof(dset::JldDataset) = length(dset)
+lastindex(dset::JldDataset) = length(dset)
 
 isarraycomplex(::Type{Array{T, N}}) where {T<:Complex, N} = true
 isarraycomplex(t) = false
@@ -931,7 +935,7 @@ _typedict["CompositeKind"] = CompositeKind
 function _julia_type(s::AbstractString)
     typ = get(_typedict, s, UnconvertedType)
     if typ == UnconvertedType
-        e = parse(s)
+        e = mparse(s)
         e = JLD.fixtypes(e)
         typ = UnsupportedType
         if JLD.is_valid_type_ex(e)
@@ -942,7 +946,7 @@ function _julia_type(s::AbstractString)
                 end
             catch
                 try
-                    typ = eval(Main, e)
+                    typ = Core.eval(Main, e)
                 catch
                     typ = UnsupportedType
                     if !isa(typ, Type)
@@ -1020,19 +1024,19 @@ end
 macro save(filename, vars...)
     if isempty(vars)
         # Save all variables in the current module
-        writeexprs = Vector{Expr}(0)
-        m = current_module()
+        writeexprs = Vector{Expr}(undef, 0)
+        m = @__MODULE__
         for vname in names(m)
             s = string(vname)
             if !ismatch(r"^_+[0-9]*$", s) # skip IJulia history vars
-                v = eval(m, vname)
+                v = Core.eval(m, vname)
                 if !isa(v, Module)
                     push!(writeexprs, :(if !isa($(esc(vname)), Function) write(f, $s, $(esc(vname))) end))
                 end
             end
         end
     else
-        writeexprs = Vector{Expr}(length(vars))
+        writeexprs = Vector{Expr}(undef, length(vars))
         for i = 1:length(vars)
             writeexprs[i] = :(write(f, $(string(vars[i])), $(esc(vars[i]))))
         end
@@ -1046,11 +1050,11 @@ end
 macro load(filename, vars...)
     if isempty(vars)
         if isa(filename, Expr)
-            filename = eval(current_module(), filename)
+            filename = Core.eval(@__MODULE__, filename)
         end
         # Load all variables in the top level of the file
-        readexprs = Vector{Expr}(0)
-        vars = Vector{Expr}(0)
+        readexprs = Vector{Expr}(undef, 0)
+        vars = Vector{Expr}(undef, 0)
         f = jldopen(filename)
         nms = names(f)
         for n in nms
@@ -1067,7 +1071,7 @@ macro load(filename, vars...)
                          :(close($f))),
                     Symbol[v.args[1] for v in vars]) # "unescape" vars
     else
-        readexprs = Vector{Expr}(length(vars))
+        readexprs = Vector{Expr}(undef, length(vars))
         for i = 1:length(vars)
             readexprs[i] = :($(esc(vars[i])) = read(f, $(string(vars[i]))))
         end
@@ -1081,7 +1085,7 @@ macro load(filename, vars...)
 end
 
 # Save all the key-value pairs in the dict as top-level variables of the JLD
-function save(filename::AbstractString, dict::Associative)
+function save(filename::AbstractString, dict::AbstractDict)
     jldopen(filename, "w") do file
         for (k,v) in dict
             write(file, bytestring(k), v)

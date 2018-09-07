@@ -16,12 +16,12 @@ jldopen(filename, "w") do file
     write(file, "x", MyType(3))
 end
 
-end
+end # Writing
 
 
 module Reading
 
-using JLD, Base.Test
+using JLD, Compat.Test
 import ..Translation: filename
 
 mutable struct MyType
@@ -49,6 +49,6 @@ end
 
 @test isa(t, MyType)
 
-end
+end # Reading
 
 end
