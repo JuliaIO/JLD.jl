@@ -2,7 +2,7 @@ using HDF5
 using JLD
 using DataFrames
 
-fname = joinpath(tempdir(), "mydata.jld")
+fname = joinpath(tempdir(), "mydata-$(randstring()).jld")
 
 df =  DataFrames.DataFrame(Any[[2:6;], pi*[1:5;]])
 df2 = DataFrames.DataFrame(a = [1:5;], b = pi * [1:5;])
@@ -22,7 +22,7 @@ using Compat.Test
 @test isequal(df2, y)
 
 # Testing issue #236
-fname = joinpath(tempdir(), "int_str_data.jld")
+fname = joinpath(tempdir(), "int_str_data-$(randstring()).jld")
 df3 = DataFrames.DataFrame(A = [1:4;], B = ["M", "F", "F", "M"])
 file = jldopen(fname, "w")
 write(file, "df3", df3)

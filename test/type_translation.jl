@@ -1,6 +1,6 @@
 module Translation
 
-const filename = joinpath(tempdir(), "translation.jld")
+const filename = joinpath(tempdir(), "translation-$(randstring()).jld")
 
 module Writing
 

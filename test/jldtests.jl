@@ -354,7 +354,7 @@ function checkfunexpr(f_body::Expr, g_body::Expr)
 end
 
 
-fn = joinpath(tempdir(),"test.jld")
+fn = joinpath(tempdir(),"test-$(randstring()).jld")
 
 # Issue #106
 module Mod106
