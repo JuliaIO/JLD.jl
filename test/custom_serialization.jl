@@ -24,14 +24,15 @@ end
 Base.eltype(::Type{MyContainer{T}}) where {T} = T
 ==(a::MyContainer, b::MyContainer) = length(a.objs) == length(b.objs) && all(i->a.objs[i]==b.objs[i], 1:length(a.objs))
 
-end
+end # MyTypes
 
 
 ### Here are the definitions needed to implement the custom serialization
 # If you prefer, you could include these definitions in the MyTypes module
 module MySerializer
 
-using HDF5, JLD, MyTypes
+using HDF5, JLD, ..MyTypes
+using Compat
 
 ## Defining the serialization format
 mutable struct MyContainerSerializer{T}
@@ -47,18 +48,16 @@ JLD.readas(serdata::MyContainerSerializer) =
 function JLD.writeas(data::MyContainer{T}) where T
     ids = [obj.id for obj in data.objs]
     n = length(data.objs)
-    vectors = Matrix{T}(5, n)
+    vectors = Matrix{T}(undef, 5, n)
     for i = 1:n
         vectors[:,i] = data.objs[i].data
     end
     MyContainerSerializer(vectors, ids)
 end
 
-end   # MySerializer
+end # MySerializer
 
-
-
-using MyTypes, JLD, Base.Test
+using ..MyTypes, JLD, Compat.Test
 
 obj1 = MyType(rand(5), 2)
 obj2 = MyType(rand(5), 17)
