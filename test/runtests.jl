@@ -1,4 +1,4 @@
-using HDF5
+using HDF5, Random
 
 runtest(filename) = (println(filename); include(filename))
 

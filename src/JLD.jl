@@ -15,7 +15,7 @@ import LegacyStrings: UTF16String
 @noinline gcuse(x) = x # because of use of `pointer`, need to mark gc-use end explicitly
 
 const magic_base = "Julia data file (HDF5), version "
-const version_current = v"0.1.1"
+const version_current = v"0.1.2"
 const pathrefs = "/_refs"
 const pathtypes = "/_types"
 const pathrequire = "/_require"

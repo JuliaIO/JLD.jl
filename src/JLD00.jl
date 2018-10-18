@@ -250,7 +250,7 @@ function read(parent::Union{JldFile, JldGroup}, name::String)
     end
     val
 end
-read(parent::Union{JldFile,JldGroup}, name::Symbol) = read(parent,bytestring(string(name)))
+read(parent::Union{JldFile,JldGroup}, name::Symbol) = read(parent, string(name))
 
 # read and readsafely differ only in how they handle CompositeKind
 function read(obj::Union{JldFile, JldDataset})
@@ -338,7 +338,7 @@ function readsafely(parent::Union{JldFile, JldGroup}, name::String)
     end
     return ret
 end
-readsafely(parent::Union{JldFile,JldGroup}, name::Symbol) = readsafely(parent, bytestring(string(symbol)))
+readsafely(parent::Union{JldFile,JldGroup}, name::Symbol) = readsafely(parent, string(symbol))
 
 # Basic types
 const BitsKindOrString = Union{HDF5BitsKind, String}
@@ -615,7 +615,7 @@ write(parent::Union{JldFile, JldGroup}, name::String, sym::Symbol) = write(paren
 write(parent::Union{JldFile, JldGroup}, name::String, syms::Array{Symbol}) = write(parent, name, map(string, syms), full_typename(typeof(syms)))
 
 # Char
-write(parent::Union{JldFile, JldGroup}, name::String, char::Char) = write(parent, name, uint32(char), "Char")
+write(parent::Union{JldFile, JldGroup}, name::String, char::Char) = write(parent, name, UInt32(char), "Char")
 
 #UTF16String
 write(parent::Union{JldFile, JldGroup}, name::String, str::UTF16String) = write(parent, name, str.data, "UTF16String")
@@ -1086,7 +1086,7 @@ end
 function save(filename::AbstractString, dict::AbstractDict)
     jldopen(filename, "w") do file
         for (k,v) in dict
-            write(file, bytestring(k), v)
+            write(file, String(k), v)
         end
     end
 end
@@ -1096,9 +1096,9 @@ function save(filename::AbstractString, name::AbstractString, value, pairs...)
         throw(ArgumentError("arguments must be in name-value pairs"))
     end
     jldopen(filename, "w") do file
-        write(file, bytestring(name), value)
+        write(file, String(name), value)
         for i = 1:2:length(pairs)
-            write(file, bytestring(pairs[i]), pairs[i+1])
+            write(file, String(pairs[i]), pairs[i+1])
         end
     end
 end
