@@ -1,5 +1,7 @@
 module Translation
 
+using Random
+
 const filename = joinpath(tempdir(), "translation-$(randstring()).jld")
 
 module Writing

@@ -129,6 +129,17 @@ _jlconvert_bits!(out::Ptr, ::Type{T}, ptr::Ptr) where {T} =
 jlconvert(T::BitsKindTypes, ::JldFile, ptr::Ptr) = _jlconvert_bits(T, ptr)
 jlconvert!(out::Ptr, T::BitsKindTypes, ::JldFile, ptr::Ptr) = _jlconvert_bits!(out, T, ptr)
 
+function jlconvert(T::Type{Char}, f::JldFile, ptr::Ptr)
+    c = unsafe_load(convert(Ptr{Char}, ptr))
+    if f.version < v"0.1.2"
+        c = Char(reinterpret(UInt32, c))
+    end
+    return c
+end
+function jlconvert!(out::Ptr, T::Type{Char}, f::JldFile, ptr::Ptr)
+    unsafe_store!(convert(Ptr{Char}, out), jlconvert(Char, f, ptr))
+end
+
 ## Nothing
 
 const NothingType = Type{Nothing}
@@ -397,7 +408,7 @@ function _gen_jlconvert_immutable(typeinfo::JldTypeInfo, @nospecialize(T))
     ex = Expr(:block)
     args = ex.args
     jloffsets = map(idx->fieldoffset(T, idx), 1:fieldcount(T))
-    if datatype_pointerfree(T)
+    if isbitstype(T)
         push!(args, :(out = Ref{T}()))
         push!(args, :(jlconvert!(unsafe_convert(Ptr{T}, out), T, file, ptr)))
         push!(args, :(return out[]))
@@ -440,7 +451,7 @@ function _gen_jlconvert_immutable!(typeinfo::JldTypeInfo, @nospecialize(T))
     ex = Expr(:block)
     args = ex.args
     jloffsets = map(idx->fieldoffset(T, idx), 1:fieldcount(T))
-    if datatype_pointerfree(T)
+    if isbitstype(T)
         for i = 1:length(typeinfo.dtypes)
             h5offset = typeinfo.offsets[i]
             jloffset = jloffsets[i]
@@ -718,7 +729,9 @@ function jldatatype(parent::JldFile, dtype::HDF5Datatype)
 
         # Verify that types match
         newtype = h5type(parent, T, false).dtype
-        dtype == newtype || throw(TypeMismatchException(typename))
+        if T !== Expr  # in julia >= 0.7 Expr has 1 fewer fields; the trailing field can be ignored.
+            dtype == newtype || throw(TypeMismatchException(typename))
+        end
 
         # Store type in type index
         index = typeindex(parent, addr)
