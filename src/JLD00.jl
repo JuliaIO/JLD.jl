@@ -402,7 +402,7 @@ read(obj::JldDataset, ::Type{Array{Symbol,N}}) where {N} = map(Symbol, read(obj.
 read(obj::JldDataset, ::Type{Char}) = Char(read(obj.plain, UInt32))
 
 read(obj::JldDataset, ::Type{UTF16String}) = UTF16String(read(obj.plain, Array{UInt16}))
-read(obj::JldDataset, ::Type{Array{UTF16String,N}}) where {N} = map(x->UTF16String(x), read(obj, Array{Vector{UInt16},N}))
+read(obj::JldDataset, ::Type{Array{UTF16String,N}}) where {N} = map(UTF16String, read(obj, Array{Vector{UInt16},N}))
 
 # General arrays
 read(obj::JldDataset, t::Type{Array{T,N}}) where {T,N} = getrefs(obj, T)
