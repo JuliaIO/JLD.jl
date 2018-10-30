@@ -273,10 +273,6 @@ end
 jlconvert(::Type{T}, file::JldFile, ptr::Ptr) where {T<:Type} =
     julia_type(jlconvert(String, file, ptr))
 
-## Pointers
-
-h5type(parent::JldFile, ::Type{T}, ::Bool) where {T<:Ptr} = throw(PointerException())
-
 ## Union{}
 
 h5fieldtype(parent::JldFile, ::Type{Union{}}, ::Bool) = JLD_REF_TYPE

@@ -1126,9 +1126,6 @@ function save_write(f, s, vname, wsession::JldWriteSession)
         try
             write(f, s, vname)
         catch e
-            if isa(e, PointerException)
-                @warn("Skipping $vname because it contains a pointer")
-            end
         end
     end
 end
