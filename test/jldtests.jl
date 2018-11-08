@@ -460,7 +460,7 @@ for compatible in (false, true), compress in (false, true)
     @write fid undefv
     @write fid undefm
     @write fid ms_undef
-    @test_throws JLD.PointerException @write fid objwithpointer
+    @write fid objwithpointer
     @write fid bt
     @write fid sa_asc
     @write fid sa_utf8
