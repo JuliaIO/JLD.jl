@@ -28,6 +28,35 @@ file["a"] = [1:100]
 b = file["a"][20:30]
 close(file)
 ```
+
+You can use the `names` function to get an array of the dataset or group names in you `*.jld` file ( useful if you forgot your dataset structure and doesn't want to load the entire dataset in memory ). It can be applied on `JldFile` and `JldGroup` types. Consider the following example :
+
+```julia
+file = jldopen("mydata.jld","w")
+file["dataset"] = 1:5
+file["group/dataset0"] = 1:7
+file["group/dataset1"] = 1:9
+close(file)
+```
+
+```julia
+julia> file = jldopen("mydata.jld","r")
+julia> names(file)
+2-element Array{String,1}:
+ "dataset"
+ "group"
+julia> names(file["group"])
+2-element Array{String,1}:
+ "dataset0"
+ "dataset1"
+julia> read(file["group/dataset0"])
+1:7
+julia> names(file["dataset"])
+ERROR: MethodError: no method matching names(::JLD.JldDataset)...
+julia> typeof(file["dataset"])
+JLD.JldDataset
+```
+
 Use the `delete!` function to delete `JldDataset`s and their associated references.  Directly deleting a `JldDataset` with `o_delete` will leave behind unwanted objects that may cause future errors, especially if you reuse the same path in the JLD file.
 
 To specify compression, use the `compress` keyword argument to `jldopen` or
