@@ -1250,11 +1250,11 @@ end
 # As of this version, packages aren't loaded into Main by default, so the root
 # module check verifies that packages are still identified as being top level
 # even if a binding to them is not present in Main.
-_istoplevel(m::Module) = module_parent(m) == Main || Base.is_root_module(m)
+_istoplevel(m::Module) = parentmodule(m) == Main || Base.is_root_module(m)
 
 function addrequire(file::JldFile, mod::Module)
     _istoplevel(mod) || error("must be a toplevel module")
-    addrequire(file, module_name(mod))
+    addrequire(file, nameof(mod))
 end
 
 function addrequire(file::JldFile, modsym::Symbol)
