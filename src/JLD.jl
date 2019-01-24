@@ -15,7 +15,7 @@ import LegacyStrings: UTF16String
 @noinline gcuse(x) = x # because of use of `pointer`, need to mark gc-use end explicitly
 
 const magic_base = "Julia data file (HDF5), version "
-const version_current = v"0.1.2"
+const version_current = v"0.1.3"
 const pathrefs = "/_refs"
 const pathtypes = "/_types"
 const pathrequire = "/_require"
@@ -390,9 +390,14 @@ function read(obj::JldDataset)
 end
 
 ## Scalars
-read_scalar(obj::JldDataset, dtype::HDF5Datatype, ::Type{T}) where {T<:BitsKindOrString} =
-    read(obj.plain, T)
-function read_scalar(obj::JldDataset, dtype::HDF5Datatype, T::Type)
+function read_scalar(obj::JldDataset, dtype::HDF5Datatype, ::Type{T}) where {T<:BitsKindOrString}
+    if T === Bool && obj.file.version < v"0.1.3"
+        return read_scalar_default(obj, dtype, Bool)
+    end
+    return read(obj.plain, T)
+end
+read_scalar(obj::JldDataset, dtype::HDF5Datatype, T::Type) = read_scalar_default(obj, dtype, T)
+function read_scalar_default(obj::JldDataset, dtype::HDF5Datatype, T::Type)
     buf = Vector{UInt8}(undef, sizeof(dtype))
     HDF5.readarray(obj.plain, dtype.id, buf)
     sc = readas(jlconvert(T, file(obj), pointer(buf)))
@@ -416,6 +421,9 @@ end
 # Arrays of basic HDF5 kinds
 function read_vals(obj::JldDataset, dtype::HDF5Datatype, T::Union{Type{S}, Type{Complex{S}}},
                    dspace_id::HDF5.Hid, dsel_id::HDF5.Hid, dims::Tuple{Vararg{Int}}) where {S<:HDF5BitsKind}
+    if S === Bool && obj.file.version < v"0.1.3"
+        return read_vals_default(obj, dtype, T, dspace_id, dsel_id, dims)
+    end
     if obj.file.mmaparrays && HDF5.iscontiguous(obj.plain) && dsel_id == HDF5.H5S_ALL
         readmmap(obj.plain, Array{T})
     else
@@ -428,6 +436,11 @@ end
 # Arrays of immutables/bitstypes
 function read_vals(obj::JldDataset, dtype::HDF5Datatype, T::Type, dspace_id::HDF5.Hid,
                    dsel_id::HDF5.Hid, dims::Tuple{Vararg{Int}})
+    return read_vals_default(obj, dtype, T, dspace_id, dsel_id, dims)
+end
+
+function read_vals_default(obj::JldDataset, dtype::HDF5Datatype, T::Type, dspace_id::HDF5.Hid,
+                           dsel_id::HDF5.Hid, dims::Tuple{Vararg{Int}})
     out = Array{T}(undef, dims)
     # Empty objects don't need to be read at all
     T.size == 0 && !T.mutable && return out
