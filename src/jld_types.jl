@@ -679,7 +679,7 @@ function jldatatype(parent::JldFile, dtype::HDF5Datatype)
         else
             error("character set ", cset, " not recognized")
         end
-    elseif class_id == HDF5.H5T_INTEGER || class_id == HDF5.H5T_FLOAT
+    elseif class_id == HDF5.H5T_INTEGER || class_id == HDF5.H5T_FLOAT || class_id == HDF5.H5T_BITFIELD
         # This can be a performance hotspot
         HDF5.h5t_equal(dtype.id, HDF5.H5T_NATIVE_DOUBLE) > 0 && return Float64
         HDF5.h5t_equal(dtype.id, HDF5.H5T_NATIVE_INT64) > 0 && return Int64
@@ -691,6 +691,7 @@ function jldatatype(parent::JldFile, dtype::HDF5Datatype)
         HDF5.h5t_equal(dtype.id, HDF5.H5T_NATIVE_INT8) > 0 && return Int8
         HDF5.h5t_equal(dtype.id, HDF5.H5T_NATIVE_INT16) > 0 && return Int16
         HDF5.h5t_equal(dtype.id, HDF5.H5T_NATIVE_UINT16) > 0 && return UInt16
+        HDF5.h5t_equal(dtype.id, HDF5.H5T_NATIVE_B8) > 0 && return Bool
         error("unrecognized integer or float type")
     elseif class_id == HDF5.H5T_COMPOUND || class_id == HDF5.H5T_OPAQUE
         addr = HDF5.objinfo(dtype).addr
