@@ -230,6 +230,8 @@ tuple_of_tuples = (1, 2, (3, 4, [5, 6]), [7, 8])
 simplevec = Core.svec(1, 2, Int64, "foo")
 iseq(x::Core.SimpleVector, y::Core.SimpleVector) = collect(x) == collect(y)
 
+namedtupl = (x = 1, y = 2, z = "hi")
+
 # Issue #243
 # Type that overloads != so that it is not boolean
 struct NALikeType; end
@@ -515,6 +517,7 @@ for compatible in (false, true), compress in (false, true)
     @write fid natyperef
     @write fid ver
     @write fid simple_bool
+    @write fid namedtupl
 
     # Make sure we can create groups (i.e., use HDF5 features)
     g = g_create(fid, "mygroup")
@@ -652,6 +655,7 @@ for compatible in (false, true), compress in (false, true)
         @check fidr simplevec
         @check fidr natyperef
         @check fidr ver
+        @check fidr namedtupl
 
         x1 = read(fidr, "group1/x")
         @assert x1 == Any[1]

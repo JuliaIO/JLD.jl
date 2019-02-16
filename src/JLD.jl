@@ -974,7 +974,10 @@ function fixtypes(typ::Expr, whereall::Vector{Any})
     end
 
     if typ.head === :tuple
-        typ = Expr(:curly, :Tuple, typ.args...)
+        if !any(x->isa(x,QuoteNode) || isbits(x), typ.args)
+            # guess that we have a tuple type represented as a tuple
+            typ = Expr(:curly, :Tuple, typ.args...)
+        end
     end
 
     if typ.head === :curly
@@ -1063,7 +1066,7 @@ function full_typename(io::IO, ::JldFile, x)
     # A different implementation will be required to support custom immutables
     # or things as simple as Int16(1).
     s = sprint(show, x)
-    if isbits(x) && Meta.parse(s) === x && !isa(x, Tuple)
+    if (isbits(x) || x isa Symbol || (x isa Tuple && all(y->(isbits(y) || y isa Symbol), x))) && eval(Meta.parse(s)) === x
         print(io, s)
     else
         error("type parameters with objects of type ", typeof(x), " are currently unsupported")
