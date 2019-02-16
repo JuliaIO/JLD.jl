@@ -339,7 +339,17 @@ else
         isconcretetype(T) && (!T.mutable || T.size == 0) && datatype_pointerfree(T) ? h5type(parent, T, commit) : JLD_REF_TYPE
 end
 
-function h5type(parent::JldFile, @nospecialize(T), commit::Bool)
+function h5type(parent::JldFile, T::Type{Bool}, commit::Bool)
+    if parent.version < v"0.1.3"
+        h5type_default(parent, T, commit)
+    else
+        JldDatatype(HDF5Datatype(HDF5.hdf5_type_id(T), false), 0)
+    end
+end
+
+h5type(parent::JldFile, @nospecialize(T), commit::Bool) = h5type_default(parent, T, commit)
+
+function h5type_default(parent::JldFile, @nospecialize(T), commit::Bool)
     !isa(T, DataType) && unknown_type_err(T)
     T = T::DataType
 
@@ -679,7 +689,7 @@ function jldatatype(parent::JldFile, dtype::HDF5Datatype)
         else
             error("character set ", cset, " not recognized")
         end
-    elseif class_id == HDF5.H5T_INTEGER || class_id == HDF5.H5T_FLOAT
+    elseif class_id == HDF5.H5T_INTEGER || class_id == HDF5.H5T_FLOAT || class_id == HDF5.H5T_BITFIELD
         # This can be a performance hotspot
         HDF5.h5t_equal(dtype.id, HDF5.H5T_NATIVE_DOUBLE) > 0 && return Float64
         HDF5.h5t_equal(dtype.id, HDF5.H5T_NATIVE_INT64) > 0 && return Int64
@@ -691,6 +701,7 @@ function jldatatype(parent::JldFile, dtype::HDF5Datatype)
         HDF5.h5t_equal(dtype.id, HDF5.H5T_NATIVE_INT8) > 0 && return Int8
         HDF5.h5t_equal(dtype.id, HDF5.H5T_NATIVE_INT16) > 0 && return Int16
         HDF5.h5t_equal(dtype.id, HDF5.H5T_NATIVE_UINT16) > 0 && return UInt16
+        HDF5.h5t_equal(dtype.id, HDF5.H5T_NATIVE_B8) > 0 && return Bool
         error("unrecognized integer or float type")
     elseif class_id == HDF5.H5T_COMPOUND || class_id == HDF5.H5T_OPAQUE
         addr = HDF5.objinfo(dtype).addr

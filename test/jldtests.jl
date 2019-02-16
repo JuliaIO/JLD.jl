@@ -36,6 +36,7 @@ cint = 1+im  # issue 108
 C = reinterpret(ComplexF64, vec(B))
 emptyA = zeros(0,2)
 emptyB = zeros(2,0)
+simple_bool = true
 try
     global MyStruct
     mutable struct MyStruct
@@ -513,6 +514,7 @@ for compatible in (false, true), compress in (false, true)
     @write fid simplevec
     @write fid natyperef
     @write fid ver
+    @write fid simple_bool
 
     # Make sure we can create groups (i.e., use HDF5 features)
     g = g_create(fid, "mygroup")
@@ -575,6 +577,7 @@ for compatible in (false, true), compress in (false, true)
         @check fidr typevar_lb
         @check fidr typevar_ub
         @check fidr typevar_lb_ub
+        @check fidr simple_bool
 
         # Special cases for reading undefs
         undefv = read(fidr, "undefv")
