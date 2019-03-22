@@ -770,7 +770,7 @@ function reconstruct_type(parent::JldFile, dtype::HDF5Datatype, savedname::Abstr
         for i = 1:nfields
             membername = HDF5.h5t_get_member_name(dtype.id, i-1)
             idx = first(something(findlast("_", membername), 0:-1))
-            fieldname = fieldnames[i] = Symbol(membername[1:idx-1])
+            fieldname = fieldnames[i] = Symbol(membername[1:prevind(membername,idx)])
 
             if idx != sizeof(membername)
                 # There is something past the underscore in the HDF5 field
