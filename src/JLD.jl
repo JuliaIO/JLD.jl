@@ -1150,13 +1150,13 @@ macro save(filename, vars...)
     if isempty(vars)
         # Save all variables in the current module
         writeexprs = Vector{Expr}(undef, 0)
-        m = current_module()
+        m = Main
         for vname in names(m)
             s = string(vname)
-            if !ismatch(r"^_+[0-9]*$", s) # skip IJulia history vars
-                v = eval(m, vname)
+            if !occursin(r"^_+[0-9]*$", s) && s != "ans" # skip IJulia history vars
+                v = Core.eval(m, vname)
                 if !isa(v, Module)
-                    push!(writeexprs, :(save_write(f, $s, $(esc(vname)), wsession)))
+                    push!(writeexprs, :(write(f, $s, $(esc(vname)), wsession)))
                 end
             end
         end
@@ -1185,7 +1185,7 @@ macro load(filename, vars...)
                      unexpected behavior unless the file is specified as a string literal. Future
                      versions of JLD will require that the file is specified as a string literal
                      in this case.""")
-            filename = eval(current_module(), filename)
+            filename = eval(Main, filename)
         end
         # Load all variables in the top level of the file
         readexprs = Expr[]
