@@ -130,7 +130,7 @@ module MyTypes
 
 export MyType
 
-type MyType
+struct MyType
     value::Int
 end
 
