@@ -17,7 +17,7 @@ addons:
     - hdf5
 script:
     - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
-    - julia -e 'using Pkg; Pkg.clone(pwd()); Pkg.develop("JLDArchives")'
+    - julia -e 'using Pkg; Pkg.clone(pwd()); Pkg.develop(PackageSpec(url="https://github.com/JuliaIO/JLDArchives.jl.git"))'
     - julia -e 'using Pkg; Pkg.test("JLD",coverage=true); Pkg.test("JLDArchives",coverage=true)'
 after_success:
     - if [ $TRAVIS_JULIA_VERSION = "nightly" ]; then julia -e 'using Pkg; cd(Pkg.dir("JLD")); Pkg.add("Coverage"); using Coverage; Codecov.submit(process_folder())'; fi

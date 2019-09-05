@@ -19,7 +19,7 @@ complete solution appears to be Julia's serializer, which can be
 accessed via the `serialize` and `deserialize` commands.  However,
 because the serializer is also used for inter-process communication,
 long-term backwards compatibility is currently uncertain.  (The
-[JLDArchives](https://github.com/timholy/JLDArchives.jl) package exists to test compatibility of older JLD file
+[JLDArchives](https://github.com/JuliaIO/JLDArchives.jl.git) repository exists to test compatibility of older JLD file
 formats.) If you choose to save data using the serializer, please use
 the file extension `.jls` to distinguish the files from `.jld` files.
 
@@ -148,7 +148,7 @@ This will cause `"MyTypes.jl"` to be loaded automatically whenever `"somedata.jl
 
 ## If you have performance problems...
 
-Please see the complete documentation, particularly the section about custom serializers. 
+Please see the complete documentation, particularly the section about custom serializers.
 
 ## Complete documentation
 
