@@ -2,6 +2,7 @@ using HDF5, JLD
 using Compat, LegacyStrings
 using Compat.Test, Compat.LinearAlgebra
 using Compat: @warn
+using Random
 
 @static if VERSION ≥ v"0.7.0-DEV.2329"
     using Profile
@@ -982,4 +983,23 @@ mktempdir() do d
     @test isempty(t.tags) && eltype(t.tags) == Any
     @test isempty(t.data) && eltype(t.data) == Pair{Any,Any}
     rm(file)
+end
+
+# Issues #249 and #251
+let fid = jldopen(fn, "w", mmaparrays = true)
+    write(fid, "a", true)
+    @test read(fid, "a") == true
+
+    write(fid, "b", false)
+    @test read(fid, "b") == false
+
+    write(fid, "c", Bool[true, true, false, false, true])
+    @test read(fid, "c") == Bool[true, true, false, false, true]
+
+    local t = Dict{String, Any}("a" => true, "b" => false, "c" => "xyz", "d" => 13)
+    write(fid, "d", t)
+    @test read(fid, "d") == t
+
+    close(fid)
+    rm(fn)
 end

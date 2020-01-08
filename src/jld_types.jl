@@ -703,6 +703,8 @@ function jldatatype(parent::JldFile, dtype::HDF5Datatype)
         HDF5.h5t_equal(dtype.id, HDF5.H5T_NATIVE_UINT16) > 0 && return UInt16
         HDF5.h5t_equal(dtype.id, HDF5.H5T_NATIVE_B8) > 0 && return Bool
         error("unrecognized integer or float type")
+    elseif class_id == HDF5.H5T_BITFIELD
+        Bool
     elseif class_id == HDF5.H5T_COMPOUND || class_id == HDF5.H5T_OPAQUE
         addr = HDF5.objinfo(dtype).addr
         haskey(parent.h5jltype, addr) && return parent.h5jltype[addr]
