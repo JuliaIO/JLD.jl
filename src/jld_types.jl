@@ -419,8 +419,10 @@ function _gen_jlconvert_immutable(typeinfo::JldTypeInfo, @nospecialize(T))
         push!(args, :(jlconvert!(unsafe_convert(Ptr{T}, out), T, file, ptr)))
         push!(args, :(return out[]))
     else
-        push!(args, :(out = ccall(:jl_new_struct_uninit, Ref{T}, (Any,), T)))
-        for i = 1:length(typeinfo.dtypes)
+        nf = length(typeinfo.dtypes)
+        push!(args, :(fieldvals = Vector{Any}(undef, $nf)))
+        push!(args, :(ninit = 0))
+        for i = 1:nf
             h5offset = typeinfo.offsets[i]
             jloffset = jloffsets[i]
             obj = gensym("obj")
@@ -434,20 +436,24 @@ function _gen_jlconvert_immutable(typeinfo::JldTypeInfo, @nospecialize(T))
                         @warn("""A pointerfree tuple field was undefined.
                                  This is not supported in Julia 0.4 and the corresponding tuple will be uninitialized.""")
                     else
-                        ccall(:jl_set_nth_field, Cvoid, (Any, Csize_t, Any), out, $(i-1), convert($(T.types[i]), read_ref(file, ref)))
+                        fieldvals[$i] = convert($(T.types[i]), read_ref(file, ref))
+                        ninit += 1
                     end
                 end)
             elseif HDF5.h5t_get_class(typeinfo.dtypes[i]) == HDF5.H5T_REFERENCE
                 push!(args, quote
                     ref = unsafe_load(convert(Ptr{HDF5ReferenceObj}, ptr)+$h5offset)
                     if ref != HDF5.HDF5ReferenceObj_NULL
-                        ccall(:jl_set_nth_field, Cvoid, (Any, Csize_t, Any), out, $(i-1), convert($(T.types[i]), read_ref(file, ref)))
+                        fieldvals[$i] = convert($(T.types[i]), read_ref(file, ref))
+                        ninit += 1
                     end
                 end)
             else
-                push!(args, :(ccall(:jl_set_nth_field, Cvoid, (Any, Csize_t, Any), out, $(i-1), jlconvert($(T.types[i]), file, ptr+$h5offset))))
+                push!(args, :(fieldvals[$i] = jlconvert($(T.types[i]), file, ptr+$h5offset)))
+                push!(args, :(ninit += 1))
             end
         end
+        push!(args, :(out = ccall(:jl_new_structv, Ref{T}, (Any,Ptr{Cvoid},UInt32), T, fieldvals, ninit)))
         push!(args, :(return out))
     end
     return ex
