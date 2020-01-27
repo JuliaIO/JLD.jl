@@ -1,6 +1,6 @@
 name = "JLD"
 uuid = "4138dd39-2aa7-5051-a626-17a0bb65d9c8"
-version = "0.9.1"
+version = "0.9.2"
 
 [deps]
 Compat = "34da2185-b29b-5c13-b0c7-acf172513d20"
@@ -13,8 +13,8 @@ julia = "0.7, 1"
 
 [extras]
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
-Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Profile = "9abbd945-dff8-562f-b5e8-e1ebf5ef1b79"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 
 [targets]
 test = ["DataFrames", "Random", "Profile"]
