@@ -1,19 +1,8 @@
 using HDF5, JLD
-using Compat, LegacyStrings
-using Compat.Test, Compat.LinearAlgebra
-using Compat: @warn
 using Random
-
-@static if VERSION ≥ v"0.7.0-DEV.2329"
-    using Profile
-end
-
-@static if VERSION ≥ v"0.7.0-DEV.2437"
-    const mparse = Meta.parse
-else
-    const mparse = Base.parse
-end
-
+using Profile
+using LinearAlgebra
+using Test
 # Define variables of different types
 x = 3.7
 A = reshape(collect(1:15), 3, 5)
@@ -21,8 +10,6 @@ Aarray = Vector{Float64}[[1.2,1.3],[2.2,2.3,2.4]]
 str = "Hello"
 stringsA = String["It", "was", "a", "dark", "and", "stormy", "night"]
 stringsU = String["It", "was", "a", "dark", "and", "stormy", "night"]
-strings16 = convert(Array{UTF16String}, stringsA)
-strings16_2d = reshape(strings16[1:6], (2,3))
 empty_string = ""
 empty_string_array = String[]
 empty_array_of_strings = String[""]
@@ -76,9 +63,9 @@ unicode_char = '\U10ffff'
 β = Any[[1, 2], [3, 4]]  # issue #93
 vv = Vector{Int}[[1,2,3]]  # issue #123
 typevar = Array{Int}[[1]]
-eval(mparse("typevar_lb = (Vector{U} where U<:Integer)[[1]]"))
-eval(mparse("typevar_ub = (Vector{U} where Int<:U<:Any)[[1]]"))
-eval(mparse("typevar_lb_ub = (Vector{U} where Int<:U<:Real)[[1]]"))
+eval(Meta.parse("typevar_lb = (Vector{U} where U<:Integer)[[1]]"))
+eval(Meta.parse("typevar_ub = (Vector{U} where Int<:U<:Any)[[1]]"))
+eval(Meta.parse("typevar_lb_ub = (Vector{U} where Int<:U<:Real)[[1]]"))
 # Unexported type:
 cpus = Base.Sys.cpu_info()
 # Immutable type:
@@ -163,7 +150,7 @@ struct BitsUnion
 end
 bitsunion = BitsUnion(5.0)
 # Immutable with a union of Types
-let UT = eval(mparse("Type{T} where T <: Union{Int64, Float64}"))
+let UT = eval(Meta.parse("Type{T} where T <: Union{Int64, Float64}"))
     @eval struct TypeUnionField
         x::$UT
     end
@@ -247,13 +234,11 @@ ver = v"0.1.2"
 iseq(x,y) = isequal(x,y)
 iseq(x::MyStruct, y::MyStruct) = (x.len == y.len && x.data == y.data)
 iseq(x::MyImmutable, y::MyImmutable) = (isequal(x.x, y.x) && isequal(x.y, y.y) && isequal(x.z, y.z))
-@static if VERSION ≥ v"0.7.0-DEV.3693" # empty mutable structs are no longer singletons
-    iseq(x::EmptyType, y::EmptyType) = true
-    iseq(x::EmptyIT, y::EmptyIT) = true
-    iseq(x::Array{EmptyType}, y::Array{EmptyType}) = size(x) == size(y)
-    iseq(x::BitsParams{T}, y::BitsParams{T}) where {T} = true
-    iseq(x::BitsParams, y::BitsParams) = false
-end
+iseq(x::EmptyType, y::EmptyType) = true
+iseq(x::EmptyIT, y::EmptyIT) = true
+iseq(x::Array{EmptyType}, y::Array{EmptyType}) = size(x) == size(y)
+iseq(x::BitsParams{T}, y::BitsParams{T}) where {T} = true
+iseq(x::BitsParams, y::BitsParams) = false
 iseq(x::Union{EmptyTI, EmptyTT}, y::Union{EmptyTI, EmptyTT}) = iseq(x.x, y.x)
 iseq(c1::Array{Base.Sys.CPUinfo}, c2::Array{Base.Sys.CPUinfo}) = length(c1) == length(c2) && all([iseq(c1[i], c2[i]) for i = 1:length(c1)])
 function iseq(c1::Base.Sys.CPUinfo, c2::Base.Sys.CPUinfo)
@@ -428,8 +413,6 @@ for compatible in (false, true), compress in (false, true)
     @write fid str
     @write fid stringsA
     @write fid stringsU
-    @write fid strings16
-    @write fid strings16_2d
     @write fid empty_string
     @write fid empty_string_array
     @write fid empty_array_of_strings
@@ -529,7 +512,7 @@ for compatible in (false, true), compress in (false, true)
     close(fid)
 
     # mmapping currently fails on Windows; re-enable once it can work
-    for mmap = (@static Compat.Sys.iswindows() ? false : (false, true))
+    for mmap = (@static Sys.iswindows() ? false : (false, true))
         fidr = jldopen(fn, "r", mmaparrays=mmap)
         @test creator(fidr, "VERSION") == VERSION
         @test creator(fidr, "WORD_SIZE") == Sys.WORD_SIZE
@@ -547,8 +530,6 @@ for compatible in (false, true), compress in (false, true)
         @check fidr str
         @check fidr stringsA
         @check fidr stringsU
-        @check fidr strings16
-        @check fidr strings16_2d
         @check fidr empty_string
         @check fidr empty_string_array
         @check fidr empty_array_of_strings
@@ -953,11 +934,7 @@ end
 
 f2()
 
-@static if VERSION < v"0.7.0-DEV.481"
-    @test !isdefined(:loadmacrotestvar1) # should not be in global scope
-else
-    @test !@isdefined loadmacrotestvar1 # should not be in global scope
-end
+@test !@isdefined loadmacrotestvar1 # should not be in global scope
 @test (@eval @load $fn) == [:loadmacrotestvar1, :loadmacrotestvar2]
 @test loadmacrotestvar1 == ['a', 'b', 'c']
 @test loadmacrotestvar2 == 1

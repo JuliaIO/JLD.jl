@@ -23,7 +23,7 @@ end # Writing
 
 module Reading
 
-using JLD, Compat.Test
+using JLD, Test
 import ..Translation: filename
 
 mutable struct MyType

@@ -17,7 +17,7 @@ x = read(file, "df")
 y = read(file, "df2")
 close(file)
 
-using Compat.Test
+using Test
 @test isequal(df, x)
 @test isequal(df2, y)
 
