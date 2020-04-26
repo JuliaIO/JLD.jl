@@ -6,7 +6,7 @@ const INLINE_TUPLE = false
 const INLINE_POINTER_IMMUTABLE = false
 
 const JLD_REF_TYPE = JldDatatype(HDF5Datatype(HDF5.H5T_STD_REF_OBJ, false), 0)
-const BUILTIN_TYPES = Set([Symbol, Type, UTF16String, BigFloat, BigInt])
+const BUILTIN_TYPES = Set([Symbol, Type, BigFloat, BigInt])
 const JL_TYPENAME_TRANSLATE = Dict{String, String}()
 const JLCONVERT_INFO = Dict{Any, Any}()
 const H5CONVERT_INFO = Dict{Any, Any}()
@@ -170,31 +170,6 @@ function jlconvert(T::Union{Type{String}}, ::JldFile, ptr::Ptr)
     str = unsafe_string(strptr)
     Libc.free(strptr)
     str
-end
-
-## UTF16Strings
-
-h5fieldtype(parent::JldFile, ::Type{UTF16String}, commit::Bool) =
-    h5type(parent, UTF16String, commit)
-
-# Stored as compound types that contain a vlen
-function h5type(parent::JldFile, ::Type{UTF16String}, commit::Bool)
-    haskey(parent.jlh5type, UTF16String) && return parent.jlh5type[UTF16String]
-    vlen = HDF5.h5t_vlen_create(HDF5.H5T_NATIVE_UINT16)
-    id = HDF5.h5t_create(HDF5.H5T_COMPOUND, HDF5.h5t_get_size(vlen))
-    HDF5.h5t_insert(id, "data_", 0, vlen)
-    HDF5.h5t_close(vlen)
-    dtype = HDF5Datatype(id, parent.plain)
-    commit ? commit_datatype(parent, dtype, UTF16String) : JldDatatype(dtype, -1)
-end
-
-# no-inline needed to ensure gc-root for x
-@noinline h5convert!(out::Ptr, ::JldFile, x::UTF16String, ::JldWriteSession) =
-    unsafe_store!(convert(Ptr{HDF5.Hvl_t}, out), HDF5.Hvl_t(length(x.data), pointer(x.data)))
-
-function jlconvert(::Type{UTF16String}, ::JldFile, ptr::Ptr)
-    hvl = unsafe_load(convert(Ptr{HDF5.Hvl_t}, ptr))
-    UTF16String(unsafe_wrap(Array, convert(Ptr{UInt16}, hvl.p), hvl.len, own=true))
 end
 
 ## Symbols
@@ -599,7 +574,7 @@ unknown_type_err(T) =
     error("""$T is not of a type supported by JLD
              Please report this error at https://github.com/JuliaIO/HDF5.jl""")
 
-const BUILTIN_H5_types = Union{Nothing, Type, String, HDF5.HDF5BitsKind, UTF16String, Symbol, BigInt, BigFloat}
+const BUILTIN_H5_types = Union{Nothing, Type, String, HDF5.HDF5BitsKind, Symbol, BigInt, BigFloat}
 function gen_h5convert(parent::JldFile, @nospecialize(T))
     T <: BUILTIN_H5_types && return
     # TODO: this is probably invalid, so try to do this differently

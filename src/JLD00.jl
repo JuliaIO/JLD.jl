@@ -3,14 +3,12 @@
 ###############################################
 
 module JLD00
-using HDF5, LegacyStrings, Compat
-using Compat.Printf
-using Compat: @warn
+using Printf
+using HDF5
 # Add methods to...
 import HDF5: close, dump, exists, file, getindex, setindex!, g_create, g_open, o_delete, name, names, read, size, write,
              HDF5ReferenceObj, HDF5BitsKind, ismmappable, readmmap
 import Base: length, show, delete!, iterate
-import Compat: lastindex
 import ..JLD
 
 # See julia issue #8907
@@ -51,7 +49,7 @@ mutable struct JldFile <: HDF5.DataFile
                      writeheader::Bool=false, mmaparrays::Bool=false)
         f = new(plain, version, toclose, writeheader, mmaparrays)
         if toclose
-            @compat finalizer(close, f)
+            finalizer(close, f)
         end
         f
     end
@@ -401,9 +399,6 @@ read(obj::JldDataset, ::Type{Array{Symbol,N}}) where {N} = map(Symbol, read(obj.
 # Char
 read(obj::JldDataset, ::Type{Char}) = Char(read(obj.plain, UInt32))
 
-read(obj::JldDataset, ::Type{UTF16String}) = UTF16String(read(obj.plain, Array{UInt16}))
-read(obj::JldDataset, ::Type{Array{UTF16String,N}}) where {N} = map(UTF16String, read(obj, Array{Vector{UInt16},N}))
-
 # General arrays
 read(obj::JldDataset, t::Type{Array{T,N}}) where {T,N} = getrefs(obj, T)
 
@@ -616,11 +611,6 @@ write(parent::Union{JldFile, JldGroup}, name::String, syms::Array{Symbol}) = wri
 
 # Char
 write(parent::Union{JldFile, JldGroup}, name::String, char::Char) = write(parent, name, UInt32(char), "Char")
-
-#UTF16String
-write(parent::Union{JldFile, JldGroup}, name::String, str::UTF16String) = write(parent, name, str.data, "UTF16String")
-write(parent::Union{JldFile, JldGroup}, name::String, strs::Array{UTF16String,N}) where {N} =
-    write(parent, name, map(x->x.data, strs), "Array{UTF16String,$N}")
 
 # General array types (as arrays of references)
 function write(parent::Union{JldFile, JldGroup}, path::String, data::Array{T}, astype::AbstractString) where T

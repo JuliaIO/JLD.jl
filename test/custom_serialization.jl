@@ -32,7 +32,6 @@ end # MyTypes
 module MySerializer
 
 using HDF5, JLD, ..MyTypes
-using Compat
 
 ## Defining the serialization format
 mutable struct MyContainerSerializer{T}
@@ -57,7 +56,7 @@ end
 
 end # MySerializer
 
-using ..MyTypes, JLD, Compat.Test
+using ..MyTypes, JLD, Test
 
 obj1 = MyType(rand(5), 2)
 obj2 = MyType(rand(5), 17)

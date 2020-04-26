@@ -1,5 +1,5 @@
 using HDF5, JLD
-using Compat.Test
+using Test
 
 module JLDTemp
 using HDF5, JLD

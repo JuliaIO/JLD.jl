@@ -1,16 +1,11 @@
-__precompile__()
-
 module JLD
-using HDF5, FileIO, Compat
-using Compat.Printf
-using Compat: IOBuffer, @warn
+using Printf
+using HDF5, FileIO
 
 import HDF5: close, dump, exists, file, getindex, setindex!, g_create, g_open, o_delete, name, names, read, write,
              HDF5ReferenceObj, HDF5BitsKind, ismmappable, readmmap
 import Base: convert, length, show, ndims, delete!, eltype,
              size, sizeof, unsafe_convert, datatype_pointerfree, iterate
-import Compat: lastindex
-import LegacyStrings: UTF16String
 
 @noinline gcuse(x) = x # because of use of `pointer`, need to mark gc-use end explicitly
 
@@ -26,7 +21,9 @@ const BitsKindOrString = Union{HDF5BitsKind, String}
 
 function julia_type(s::AbstractString)
     s = replace(s, r"ASCIIString|UTF8String|ByteString" => "String")
-    s = replace(s, "Base.UTF16String" => "LegacyStrings.UTF16String")
+    if occursin("Base.UTF16String", s)
+        error("file contains Base.UTF16String, must be converted and re-saved with JLD 0.9 or less")
+    end
     _julia_type(s)
 end
 
@@ -76,7 +73,7 @@ mutable struct JldFile <: HDF5.DataFile
                 Dict{HDF5Datatype,Type}(), Dict{Type,HDF5Datatype}(),
                 Dict{HDF5ReferenceObj,WeakRef}(), String[])
         if toclose
-            @compat finalizer(close, f)
+            finalizer(close, f)
         end
         f
     end
@@ -891,7 +888,7 @@ const _where_macrocall = Symbol("@where")
 function expand_where_macro(e::Expr)
     e.head = :where
     popfirst!(e.args)
-    Compat.macros_have_sourceloc && popfirst!(e.args)
+    popfirst!(e.args)  # source location
     return true
 end
 
@@ -925,7 +922,6 @@ const typemap_Core = Dict(
     :Uint16 => :Uint16,
     :Uint32 => :UInt32,
     :Uint64 => :UInt64,
-    :Nothing => Symbol(Nothing), # translates to :Void or :Nothing via Compat
     :Void => Symbol(Nothing)
 )
 
