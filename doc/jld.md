@@ -15,7 +15,7 @@ using JLD
 \*.jld files are created or opened in the following way:
 ```julia
 file = jldopen("mydata.jld", "w")
-@write file A
+CSV.@write file A
 close(file)
 ```
 This creates a dataset named `"A"` containing the contents of the variable `A`.
