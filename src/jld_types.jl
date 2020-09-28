@@ -5,7 +5,7 @@
 const INLINE_TUPLE = false
 const INLINE_POINTER_IMMUTABLE = false
 
-const JLD_REF_TYPE = JldDatatype(HDF5Datatype(HDF5.H5T_STD_REF_OBJ, false), 0)
+const JLD_REF_TYPE = JldDatatype(HDF5.Datatype(HDF5.H5T_STD_REF_OBJ, false), 0)
 const BUILTIN_TYPES = Set([Symbol, Type, BigFloat, BigInt])
 const JL_TYPENAME_TRANSLATE = Dict{String, String}()
 const JLCONVERT_INFO = Dict{Any, Any}()
@@ -44,21 +44,21 @@ JldTypeInfo(parent::JldFile, @nospecialize(T), commit::Bool) =
     JldTypeInfo(parent, Base.unwrap_unionall(T).types, commit)
 
 # Write an HDF5 datatype to the file
-function commit_datatype(parent::JldFile, dtype::HDF5Datatype, @nospecialize(T))
+function commit_datatype(parent::JldFile, dtype::HDF5.Datatype, @nospecialize(T))
     pparent = parent.plain
-    if !exists(pparent, pathtypes)
-        gtypes = g_create(pparent, pathtypes)
+    if !haskey(pparent, pathtypes)
+        gtypes = create_group(pparent, pathtypes)
     else
         gtypes = pparent[pathtypes]
     end
 
     id = length(gtypes)+1
     try
-        HDF5.t_commit(gtypes, @sprintf("%08d", id), dtype)
+        HDF5.commit_datatype(gtypes, @sprintf("%08d", id), dtype)
     finally
         close(gtypes)
     end
-    a_write(dtype, name_type_attr, full_typename(parent, T))
+    write_attribute(dtype, name_type_attr, full_typename(parent, T))
 
     # Store in map
     parent.jlh5type[T] = JldDatatype(dtype, id)
@@ -66,7 +66,7 @@ end
 
 # If parent is nothing, we are creating the datatype in memory for
 # validation, so don't commit it
-commit_datatype(parent::Nothing, dtype::HDF5Datatype, @nospecialize(T)) =
+commit_datatype(parent::Nothing, dtype::HDF5.Datatype, @nospecialize(T)) =
     JldDatatype(dtype, -1)
 
 # The HDF5 library loses track of relationships among committed types
@@ -75,7 +75,7 @@ commit_datatype(parent::Nothing, dtype::HDF5Datatype, @nospecialize(T)) =
 # later.
 mangle_name(jtype::JldDatatype, jlname) =
     jtype.index <= 0 ? string(jlname, "_") : string(jlname, "_", jtype.index)
-Base.convert(::Type{HDF5.Hid}, x::JldDatatype) = x.dtype.id
+Base.convert(::Type{HDF5.hid_t}, x::JldDatatype) = x.dtype.id
 
 ## Serialization of datatypes to JLD
 ##
@@ -111,15 +111,15 @@ Base.convert(::Type{HDF5.Hid}, x::JldDatatype) = x.dtype.id
 ## HDF5 bits kinds
 
 # This construction prevents these methods from getting called on type unions
-const BitsKindTypes = Union{map(x->Type{x}, Base.uniontypes(HDF5.HDF5BitsKind))...}
+const BitsKindTypes = Union{map(x->Type{x}, Base.uniontypes(HDF5.BitsType))...}
 
 h5fieldtype(parent::JldFile, T::BitsKindTypes, ::Bool) =
     h5type(parent, T, false)
 
 h5type(::JldFile, T::BitsKindTypes, ::Bool) =
-    JldDatatype(HDF5Datatype(HDF5.hdf5_type_id(T), false), 0)
+    JldDatatype(HDF5.Datatype(HDF5.hdf5_type_id(T), false), 0)
 
-h5convert!(out::Ptr, ::JldFile, x::T, ::JldWriteSession) where {T<:HDF5.HDF5BitsKind} =
+h5convert!(out::Ptr, ::JldFile, x::T, ::JldWriteSession) where {T<:HDF5.BitsType} =
     unsafe_store!(convert(Ptr{T}, out), x)
 
 _jlconvert_bits(::Type{T}, ptr::Ptr) where {T} = unsafe_load(convert(Ptr{T}, ptr))
@@ -158,7 +158,7 @@ function h5type(::JldFile, ::Type{T}, ::Bool) where T<:String
     type_id = HDF5.h5t_copy(HDF5.hdf5_type_id(T))
     HDF5.h5t_set_size(type_id, HDF5.H5T_VARIABLE)
     HDF5.h5t_set_cset(type_id, HDF5.cset(T))
-    JldDatatype(HDF5Datatype(type_id, false), 0)
+    JldDatatype(HDF5.Datatype(type_id, false), 0)
 end
 
 # no-inline needed to ensure gc-root for x
@@ -182,7 +182,7 @@ function h5type(parent::JldFile, ::Type{Symbol}, commit::Bool)
     haskey(parent.jlh5type, Symbol) && return parent.jlh5type[Symbol]
     id = HDF5.h5t_create(HDF5.H5T_COMPOUND, 8)
     HDF5.h5t_insert(id, "symbol_", 0, h5fieldtype(parent, String, commit))
-    dtype = HDF5Datatype(id, parent.plain)
+    dtype = HDF5.Datatype(id, parent.plain)
     commit ? commit_datatype(parent, dtype, Symbol) : JldDatatype(dtype, -1)
 end
 
@@ -205,7 +205,7 @@ function h5type(parent::JldFile, T::Union{Type{BigInt}, Type{BigFloat}}, commit:
     haskey(parent.jlh5type, T) && return parent.jlh5type[T]
     id = HDF5.h5t_create(HDF5.H5T_COMPOUND, 8)
     HDF5.h5t_insert(id, "data_", 0, h5fieldtype(parent, String, commit))
-    dtype = HDF5Datatype(id, parent.plain)
+    dtype = HDF5.Datatype(id, parent.plain)
     commit ? commit_datatype(parent, dtype, T) : JldDatatype(dtype, -1)
 end
 
@@ -235,7 +235,7 @@ function h5type(parent::JldFile, ::Type{T}, commit::Bool) where T<:Type
     haskey(parent.jlh5type, Type) && return parent.jlh5type[Type]
     id = HDF5.h5t_create(HDF5.H5T_COMPOUND, 8)
     HDF5.h5t_insert(id, "typename_", 0, h5fieldtype(parent, String, commit))
-    dtype = HDF5Datatype(id, parent.plain)
+    dtype = HDF5.Datatype(id, parent.plain)
     out = commit ? commit_datatype(parent, dtype, Type) : JldDatatype(dtype, -1)
 end
 
@@ -289,12 +289,12 @@ function h5type(parent::JldFile, T::TupleType, commit::Bool)
         HDF5.h5t_insert(id, mangle_name(fielddtype, i), typeinfo.offsets[i], fielddtype)
     end
 
-    dtype = HDF5Datatype(id, parent.plain)
+    dtype = HDF5.Datatype(id, parent.plain)
     if commit
         jlddtype = commit_datatype(parent, dtype, T)
         if T == EMPTY_TUPLE_TYPE
             # to allow recovery of empty tuples, which HDF5 does not allow
-            a_write(dtype, "empty", UInt8(1))
+            write_attribute(dtype, "empty", UInt8(1))
         end
         jlddtype
     else
@@ -318,7 +318,7 @@ function h5type(parent::JldFile, T::Type{Bool}, commit::Bool)
     if parent.version < v"0.1.3"
         h5type_default(parent, T, commit)
     else
-        JldDatatype(HDF5Datatype(HDF5.hdf5_type_id(T), false), 0)
+        JldDatatype(HDF5.Datatype(HDF5.hdf5_type_id(T), false), 0)
     end
 end
 
@@ -344,12 +344,12 @@ function h5type_default(parent::JldFile, @nospecialize(T), commit::Bool)
         end
     end
 
-    dtype = HDF5Datatype(id, parent.plain)
+    dtype = HDF5.Datatype(id, parent.plain)
     if commit
         jlddtype = commit_datatype(parent, dtype, T)
         if T.size == 0
             # to allow recovery of empty types, which HDF5 does not allow
-            a_write(dtype, "empty", UInt8(1))
+            write_attribute(dtype, "empty", UInt8(1))
         end
         jlddtype
     else
@@ -367,8 +367,8 @@ function _gen_jlconvert_type(typeinfo::JldTypeInfo, @nospecialize(T))
 
         if HDF5.h5t_get_class(typeinfo.dtypes[i]) == HDF5.H5T_REFERENCE
             push!(args, quote
-                ref = unsafe_load(convert(Ptr{HDF5ReferenceObj}, ptr)+$h5offset)
-                if ref != HDF5.HDF5ReferenceObj_NULL
+                ref = unsafe_load(convert(Ptr{HDF5.Reference}, ptr)+$h5offset)
+                if ref != HDF5.Reference()
                     out.$(fieldnames(T)[i]) = convert($(T.types[i]), read_ref(file, ref))
                 end
             end)
@@ -406,8 +406,8 @@ function _gen_jlconvert_immutable(typeinfo::JldTypeInfo, @nospecialize(T))
                 # backwards compatibility, but on 0.4 they are now stored
                 # inline
                 push!(args, quote
-                    ref = unsafe_load(convert(Ptr{HDF5ReferenceObj}, ptr)+$h5offset)
-                    if ref == HDF5.HDF5ReferenceObj_NULL
+                    ref = unsafe_load(convert(Ptr{HDF5.Reference}, ptr)+$h5offset)
+                    if ref == HDF5.Reference()
                         @warn("""A pointerfree tuple field was undefined.
                                  This is not supported in Julia 0.4 and the corresponding tuple will be uninitialized.""")
                     else
@@ -417,8 +417,8 @@ function _gen_jlconvert_immutable(typeinfo::JldTypeInfo, @nospecialize(T))
                 end)
             elseif HDF5.h5t_get_class(typeinfo.dtypes[i]) == HDF5.H5T_REFERENCE
                 push!(args, quote
-                    ref = unsafe_load(convert(Ptr{HDF5ReferenceObj}, ptr)+$h5offset)
-                    if ref != HDF5.HDF5ReferenceObj_NULL
+                    ref = unsafe_load(convert(Ptr{HDF5.Reference}, ptr)+$h5offset)
+                    if ref != HDF5.Reference()
                         fieldvals[$i] = convert($(T.types[i]), read_ref(file, ref))
                         ninit += 1
                     end
@@ -448,8 +448,8 @@ function _gen_jlconvert_immutable!(typeinfo::JldTypeInfo, @nospecialize(T))
                 # backwards compatibility, but on 0.4 they are now stored
                 # inline
                 push!(args, quote
-                    ref = unsafe_load(convert(Ptr{HDF5ReferenceObj}, ptr)+$h5offset)
-                    if ref == HDF5.HDF5ReferenceObj_NULL
+                    ref = unsafe_load(convert(Ptr{HDF5.Reference}, ptr)+$h5offset)
+                    if ref == HDF5.Reference()
                         @warn("""A pointerfree tuple field was undefined.
                                  This is not supported in Julia 0.4 and the corresponding tuple will be uninitialized.""")
                     else
@@ -483,7 +483,7 @@ function _gen_jlconvert_tuple(typeinfo::JldTypeInfo, @nospecialize(T))
         field = Symbol(string("field", i))
 
         if HDF5.h5t_get_class(typeinfo.dtypes[i]) == HDF5.H5T_REFERENCE
-            push!(args, :($field = read_ref(file, unsafe_load(convert(Ptr{HDF5ReferenceObj}, ptr)+$h5offset))))
+            push!(args, :($field = read_ref(file, unsafe_load(convert(Ptr{HDF5.Reference}, ptr)+$h5offset))))
         else
             push!(args, :($field = jlconvert($(types[i]), file, ptr+$h5offset)))
         end
@@ -574,7 +574,7 @@ unknown_type_err(T) =
     error("""$T is not of a type supported by JLD
              Please report this error at https://github.com/JuliaIO/HDF5.jl""")
 
-const BUILTIN_H5_types = Union{Nothing, Type, String, HDF5.HDF5BitsKind, Symbol, BigInt, BigFloat}
+const BUILTIN_H5_types = Union{Nothing, Type, String, HDF5.BitsType, Symbol, BigInt, BigFloat}
 function gen_h5convert(parent::JldFile, @nospecialize(T))
     T <: BUILTIN_H5_types && return
     # TODO: this is probably invalid, so try to do this differently
@@ -631,16 +631,16 @@ function _gen_h5convert!(@nospecialize(T))
         offset = HDF5.h5t_get_member_offset(dtype.id, i-1)
         if HDF5.h5t_get_member_class(dtype.id, i-1) == HDF5.H5T_REFERENCE
             if istuple
-                push!(args, :(unsafe_store!(convert(Ptr{HDF5ReferenceObj}, out)+$offset,
+                push!(args, :(unsafe_store!(convert(Ptr{HDF5.Reference}, out)+$offset,
                                             write_ref(file, $getindex_fn(x, $i), wsession))))
             else
                 push!(args, quote
                     if isdefined(x, $i)
                         ref = write_ref(file, $getindex_fn(x, $i), wsession)
                     else
-                        ref = HDF5.HDF5ReferenceObj_NULL
+                        ref = HDF5.Reference()
                     end
-                    unsafe_store!(convert(Ptr{HDF5ReferenceObj}, out)+$offset, ref)
+                    unsafe_store!(convert(Ptr{HDF5.Reference}, out)+$offset, ref)
                 end)
             end
         else
@@ -657,9 +657,9 @@ end
 
 ## Find the corresponding Julia type for a given HDF5 type
 
-# Type mapping function. Given an HDF5Datatype, find (or construct) the
+# Type mapping function. Given an HDF5.Datatype, find (or construct) the
 # corresponding Julia type.
-function jldatatype(parent::JldFile, dtype::HDF5Datatype)
+function jldatatype(parent::JldFile, dtype::HDF5.Datatype)
     class_id = HDF5.h5t_get_class(dtype.id)
     if class_id == HDF5.H5T_STRING
         cset = HDF5.h5t_get_cset(dtype.id)
@@ -687,10 +687,10 @@ function jldatatype(parent::JldFile, dtype::HDF5Datatype)
     elseif class_id == HDF5.H5T_BITFIELD
         Bool
     elseif class_id == HDF5.H5T_COMPOUND || class_id == HDF5.H5T_OPAQUE
-        addr = HDF5.objinfo(dtype).addr
+        addr = object_info(dtype).addr
         haskey(parent.h5jltype, addr) && return parent.h5jltype[addr]
 
-        typename = a_read(dtype, name_type_attr)
+        typename = read_attribute(dtype, name_type_attr)
         typename = get(JL_TYPENAME_TRANSLATE, typename, typename)
         T = julia_type(typename)
         if T == UnsupportedType
@@ -708,7 +708,7 @@ function jldatatype(parent::JldFile, dtype::HDF5Datatype)
                     member_name = HDF5.h5t_get_member_name(dtype.id, i)
                     idx = first(something(findlast("_", member_name), 0:-1))
                     if idx != sizeof(member_name)
-                        member_dtype = HDF5.t_open(parent.plain, string(pathtypes, '/', lpad(member_name[idx+1:end], 8, '0')))
+                        member_dtype = open_datatype(parent.plain, string(pathtypes, '/', lpad(member_name[idx+1:end], 8, '0')))
                         jldatatype(parent, member_dtype)
                     end
                 end
@@ -733,13 +733,13 @@ function jldatatype(parent::JldFile, dtype::HDF5Datatype)
     end
 end
 
-# Create a Julia type based on the HDF5Datatype from the file. Used
+# Create a Julia type based on the HDF5.Datatype from the file. Used
 # when the type is no longer available.
-function reconstruct_type(parent::JldFile, dtype::HDF5Datatype, savedname::AbstractString)
+function reconstruct_type(parent::JldFile, dtype::HDF5.Datatype, savedname::AbstractString)
     name = gensym(savedname)
     class_id = HDF5.h5t_get_class(dtype.id)
     if class_id == HDF5.H5T_OPAQUE
-        if exists(dtype, "empty")
+        if haskey(dtype, "empty")
             @eval (struct $name; end; $name)
         else
             sz = Int(HDF5.h5t_get_size(dtype.id))*8
@@ -758,7 +758,7 @@ function reconstruct_type(parent::JldFile, dtype::HDF5Datatype, savedname::Abstr
             if idx != sizeof(membername)
                 # There is something past the underscore in the HDF5 field
                 # name, so the type is stored in file
-                memberdtype = HDF5.t_open(parent.plain, string(pathtypes, '/', lpad(membername[idx+1:end], 8, '0')))
+                memberdtype = open_datatype(parent.plain, string(pathtypes, '/', lpad(membername[idx+1:end], 8, '0')))
                 fieldtypes[i] = jldatatype(parent, memberdtype)
             else
                 memberclass = HDF5.h5t_get_member_class(dtype.id, i-1)
@@ -767,7 +767,7 @@ function reconstruct_type(parent::JldFile, dtype::HDF5Datatype, savedname::Abstr
                     fieldtypes[i] = Any
                 else
                     # Type is built-in
-                    memberdtype = HDF5Datatype(HDF5.h5t_get_member_type(dtype.id, i-1), parent.plain)
+                    memberdtype = HDF5.Datatype(HDF5.h5t_get_member_type(dtype.id, i-1), parent.plain)
                     fieldtypes[i] = jldatatype(parent, memberdtype)
                 end
             end
@@ -792,11 +792,11 @@ end
 # it's already many times faster than calling H5Iget_name with a lot of
 # data in the file, and it only needs to be called once per type.
 # Revisit if this ever turns out to be a bottleneck.
-function typeindex(parent::JldFile, addr::HDF5.Haddr)
+function typeindex(parent::JldFile, addr::HDF5.haddr_t)
     gtypes = parent.plain[pathtypes]
     i = 1
     for x in gtypes
-        if HDF5.objinfo(x).addr == addr
+        if object_info(x).addr == addr
             return i
         end
         i += 1

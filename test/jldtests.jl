@@ -270,11 +270,14 @@ macro check(fid, sym)
             end
         end
     end
+    # try to make test failure backtraces easier to follow
+    Base.remove_linenums!(ex)
+    pushfirst!(ex.args, __source__)
     esc(ex)
 end
 
 # Test for equality of expressions, skipping line numbers
-checkexpr(a, b) = @assert a == b
+checkexpr(a, b) = @test a == b
 function checkexpr(a::Expr, b::Expr)
     @assert a.head == b.head
     i = 1
@@ -322,7 +325,7 @@ function checkfuns(f, g)
 
     @assert f.code.module == g.code.module
 end
-checkfunexpr(a, b) = @assert a == b
+checkfunexpr(a, b) = @test a == b
 function checkfunexpr(f_body::Expr, g_body::Expr)
     i = 1
     j = 1
@@ -504,7 +507,7 @@ for compatible in (false, true), compress in (false, true)
     @write fid namedtupl
 
     # Make sure we can create groups (i.e., use HDF5 features)
-    g = g_create(fid, "mygroup")
+    g = create_group(fid, "mygroup")
     i = 7
     @write g i
     write(fid, "group1/x", Any[1])
@@ -640,9 +643,9 @@ for compatible in (false, true), compress in (false, true)
         @check fidr namedtupl
 
         x1 = read(fidr, "group1/x")
-        @assert x1 == Any[1]
+        @test x1 == Any[1]
         x2 = read(fidr, "group2/x")
-        @assert x2 == Any[2]
+        @test x2 == Any[2]
 
         close(fidr)
     end
@@ -674,15 +677,15 @@ for compatible in (false, true), compress in (false, true)
 
     # do syntax
     jldopen(fn, "w", compatible=compatible, compress=compress) do fid
-        g_create(fid, "mygroup") do g
+        create_group(fid, "mygroup") do g
             write(g, "x", 3.2)
         end
     end
     fid = jldopen(fn, "r")
-    @assert names(fid) == String["mygroup"]
+    @test names(fid) == String["mygroup"]
     g = fid["mygroup"]
-    @assert names(g) == String["x"]
-    @assert read(g, "x") == 3.2
+    @test names(g) == String["x"]
+    @test read(g, "x") == 3.2
     close(g)
     close(fid)
 
@@ -690,29 +693,29 @@ for compatible in (false, true), compress in (false, true)
     d1 = Dict([("x",3.2), ("β",β), ("A",A)])
     save(fn, d1, compatible=compatible, compress=compress)
     d2 = load(fn)
-    @assert d1 == d2
+    @test d1 == d2
     β2 = load(fn, "β")
-    @assert β == β2
+    @test β == β2
     β2, A2 = load(fn, "β", "A")
-    @assert β == β2
-    @assert A == A2
+    @test β == β2
+    @test A == A2
 
     save(fn, "x", 3.2, "β", β, "A", A, compatible=compatible, compress=compress)
     d3 = load(fn)
-    @assert d1 == d3
+    @test d1 == d3
 
     # #71
     jldopen(fn, "w", compatible=compatible, compress=compress) do file
         file["a"] = 1
     end
     jldopen(fn, "r") do file
-        @assert read(file, "a") == 1
+        @test read(file, "a") == 1
     end
 
     # Issue #106
     save(fn, "i106", Mod106.typ(Int64(1), Mod106.UnexportedT), compress=compress)
     i106 = load(fn, "i106")
-    @assert i106 == Mod106.typ(Int64(1), Mod106.UnexportedT)
+    @test i106 == Mod106.typ(Int64(1), Mod106.UnexportedT)
 
     # bracket syntax for datasets
     jldopen(fn, "w", compatible=compatible, compress=compress) do file
@@ -738,9 +741,9 @@ for compatible in (false, true), compress in (false, true)
     println("The following unrecognized JLD file warning is a sign of normal operation.")
     if compress
         h5open(fn, "w") do file
-            file["a", "blosc",5] = [1:100;]
+            file["a", blosc = 5] = [1:100;]
             file["a"][51:100] = [1:50;]
-            file["b", "blosc",5] = [x*y for x=1:10,y=1:10]
+            file["b", blosc = 5] = [x*y for x=1:10,y=1:10]
         end
     else
         h5open(fn, "w") do file
@@ -750,9 +753,9 @@ for compatible in (false, true), compress in (false, true)
         end
     end
     jldopen(fn, "r") do file
-        @assert(file["a"][1:50] == [1:50;])
-        @assert(file["a"][:] == [1:50;1:50])
-        @assert(file["b"][5,6][1]==5*6)
+        @test(file["a"][1:50] == [1:50;])
+        @test(file["a"][:] == [1:50;1:50])
+        @test(file["b"][5,6][1]==5*6)
     end
 
     # delete!
@@ -760,7 +763,7 @@ for compatible in (false, true), compress in (false, true)
         file["ms"] = ms
         delete!(file, "ms")
         file["ms"] = β
-        g = g_create(file,"g")
+        g = create_group(file,"g")
         file["g/ms"] = ms
         @test_throws ErrorException delete!(file, "_refs/g/ms")
         delete!(file, "g/ms")
@@ -772,14 +775,14 @@ for compatible in (false, true), compress in (false, true)
         delete!(g["ms"])
         g["ms"] = ms
         delete!(g)
-        g = g_create(file,"g")
+        g = create_group(file,"g")
         g["ms"] = ms
         delete!(g)
     end
     jldopen(fn, "r") do file
-        @assert(read(file["ms"]) == β)
-        @assert(!exists(file, "g/ms"))
-        @assert(!exists(file, "g"))
+        @test(read(file["ms"]) == β)
+        @test(!exists(file, "g/ms"))
+        @test(!exists(file, "g"))
     end
 
 end # compress in (false,true)
@@ -896,7 +899,7 @@ t2 = mtime(fn)
 @test t2 == t1
 
 jldopen(fn , "w") do file
-    g = g_create(file, "autocorr") # create a group
+    g = create_group(file, "autocorr") # create a group
     g["countsmapdistfreq"] = "abracadabra"
     g["xvect"] = 1:20
     file["stray"] = "cat"
@@ -963,20 +966,23 @@ mktempdir() do d
 end
 
 # Issues #249 and #251
-let fid = jldopen(fn, "w", mmaparrays = true)
-    write(fid, "a", true)
-    @test read(fid, "a") == true
+# TODO: debug mmap problems on Windows
+if !Sys.iswindows()
+    let fid = jldopen(fn, "w", mmaparrays = true)
+        write(fid, "a", true)
+        @test read(fid, "a") == true
 
-    write(fid, "b", false)
-    @test read(fid, "b") == false
+        write(fid, "b", false)
+        @test read(fid, "b") == false
 
-    write(fid, "c", Bool[true, true, false, false, true])
-    @test read(fid, "c") == Bool[true, true, false, false, true]
+        write(fid, "c", Bool[true, true, false, false, true])
+        @test read(fid, "c") == Bool[true, true, false, false, true]
 
-    local t = Dict{String, Any}("a" => true, "b" => false, "c" => "xyz", "d" => 13)
-    write(fid, "d", t)
-    @test read(fid, "d") == t
+        local t = Dict{String, Any}("a" => true, "b" => false, "c" => "xyz", "d" => 13)
+        write(fid, "d", t)
+        @test read(fid, "d") == t
 
-    close(fid)
-    rm(fn)
+        close(fid)
+        rm(fn)
+    end
 end
