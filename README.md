@@ -110,7 +110,7 @@ also be of interest:
 using JLD, HDF5
 
 jldopen("test.jld", "w") do file
-    g = g_create(file, "mygroup") # create a group
+    g = create_group(file, "mygroup") # create a group
     g["dset1"] = 3.2              # create a scalar dataset inside the group
     g["dest2"] = rand(2,2)
 end
