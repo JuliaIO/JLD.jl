@@ -1150,7 +1150,7 @@ macro save(filename, vars...)
     if isempty(vars)
         # Save all variables in the current module
         writeexprs = Vector{Expr}(undef, 0)
-        m = Main
+        m = __module__
         for vname in names(m)
             s = string(vname)
             if !occursin(r"^_+[0-9]*$", s) && s != "ans" # skip IJulia history vars
@@ -1185,7 +1185,7 @@ macro load(filename, vars...)
                      unexpected behavior unless the file is specified as a string literal. Future
                      versions of JLD will require that the file is specified as a string literal
                      in this case.""")
-            filename = eval(Main, filename)
+            filename = eval(__module__, filename)
         end
         # Load all variables in the top level of the file
         readexprs = Expr[]
