@@ -1,10 +1,8 @@
-# Saving and loading variables in Julia Data format (JLD)
+# JLD.jl
+[![Build Status](https://github.com/JuliaIO/HDF5.jl/workflows/CI/badge.svg?branch=master)](https://github.com/JuliaIO/JLD.jl/actions)
 
-[![Build Status](https://travis-ci.org/JuliaIO/JLD.jl.svg?branch=master)](https://travis-ci.org/JuliaIO/JLD.jl)
-[![Build status](https://ci.appveyor.com/api/projects/status/o2rc8yj3qnrhn738/branch/master?svg=true)](https://ci.appveyor.com/project/timholy/jld-jl-28dqq/branch/master)
-[![codecov.io](http://codecov.io/github/JuliaIO/JLD.jl/coverage.svg?branch=master)](http://codecov.io/github/JuliaIO/JLD.jl?branch=master)
+### Save and load variables in Julia Data format (JLD)
 
-[![JLD](http://pkg.julialang.org/badges/JLD_0.6.svg)](http://pkg.julialang.org/detail/JLD)
 
 JLD, for which files conventionally have the extension `.jld`, is a
 widely-used format for data storage with the Julia programming
