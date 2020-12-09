@@ -8,9 +8,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
+      # matrix copied from HDF5.jl
       matrix:
         version:
-          - '1.0'
+          - '1.3'
           - '1'
           - 'nightly'
         os:
@@ -19,6 +20,17 @@ jobs:
           - windows-latest
         arch:
           - x64
+          - x86
+        exclude:
+          - os: macOS-latest
+            arch: x86
+          - version: '1.3'
+            arch: x86
+          - version: '1'
+            arch: x86
+            os: ubuntu-latest
+          - version: 'nightly'
+            arch: x86
     steps:
       - uses: actions/checkout@v2
       - uses: julia-actions/setup-julia@latest
@@ -28,10 +40,15 @@ jobs:
       - uses: julia-actions/julia-buildpkg@latest
       - uses: julia-actions/julia-runtest@latest
       - run: |
-          julia --project --code-coverage=user -e '
+          julia --project --code-coverage=user -e "
             using Pkg
-            Pkg.GitTools.clone(Pkg.Types.Context(), "https://github.com/JuliaIO/JLDArchives.jl.git", "JLDArchives")
-            include(joinpath("JLDArchives", "test", "runtests.jl"))'
+            url = \"https://github.com/JuliaIO/JLDArchives.jl.git\"
+            if VERSION >= v\"1.4\"
+                Pkg.GitTools.clone(Pkg.Types.Context(), url, \"JLDArchives\")
+            else
+                Pkg.GitTools.clone(url, \"JLDArchives\")
+            end
+            include(joinpath(\"JLDArchives\", \"test\", \"runtests.jl\"))"
       #- uses: julia-actions/julia-processcoverage@latest
       #- uses: codecov/codecov-action@v1
       #  with:
