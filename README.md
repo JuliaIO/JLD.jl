@@ -1,5 +1,5 @@
 # JLD.jl
-[![Build Status](https://github.com/JuliaIO/HDF5.jl/workflows/CI/badge.svg?branch=master)](https://github.com/JuliaIO/JLD.jl/actions)
+[![Build Status](https://github.com/JuliaIO/JLD.jl/workflows/CI/badge.svg?branch=master)](https://github.com/JuliaIO/JLD.jl/actions)
 
 ### Save and load variables in Julia Data format (JLD)
 
