@@ -720,7 +720,11 @@ function jldatatype(parent::JldFile, dtype::HDF5.Datatype)
         # Verify that types match
         newtype = h5type(parent, T, false).dtype
         if T !== Expr  # in julia >= 0.7 Expr has 1 fewer fields; the trailing field can be ignored.
-            dtype == newtype || throw(TypeMismatchException(typename))
+            # libhdf5 compares dtype != newtype if a member field is a H5T_REFERENCE with
+            # dtype being the committed datatype and newtype being the new transient type.
+            # Copying dtype appears to make equal types compare equal again.
+            dtype′ = HDF5.h5t_committed(dtype) ? HDF5.Datatype(HDF5.h5t_copy(dtype.id)) : dtype
+            dtype′ == newtype || throw(TypeMismatchException(typename))
         end
 
         # Store type in type index
