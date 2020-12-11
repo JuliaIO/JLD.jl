@@ -570,8 +570,9 @@ function _write(parent::Union{JldFile, JldGroup},
     chunk = T <: String ? Int[] : HDF5.heuristic_chunk(data)
     dprop, dprop_close = dset_create_properties(parent, sizeof(data), data, chunk; kargs...)
     dtype = datatype(data)
-    dset = create_dataset(parent.plain, String(name), dtype, dataspace(data), HDF5._link_properties(name),
-                    dprop, HDF5.DEFAULT_PROPERTIES, HDF5.DEFAULT_PROPERTIES)
+    dset = HDF5.Dataset(HDF5.h5d_create(parent.plain, String(name), dtype, dataspace(data),
+                                        HDF5._link_properties(name), dprop,
+                                        HDF5.DEFAULT_PROPERTIES), file(parent.plain))
     try
         # Write the attribute
         isa(data, Array) && isempty(data) && write_attribute(dset, "dims", [size(data)...])
@@ -596,8 +597,9 @@ function _write(parent::Union{JldFile, JldGroup},
     chunk = HDF5.heuristic_chunk(dtype, size(data))
     dprop, dprop_close = dset_create_properties(parent, sizeof(buf),buf, chunk; kargs...)
     try
-        dset = create_dataset(parent.plain, path, dtype.dtype, dspace, HDF5._link_properties(path),
-                        dprop, HDF5.DEFAULT_PROPERTIES, HDF5.DEFAULT_PROPERTIES)
+        dset = HDF5.Dataset(HDF5.h5d_create(parent.plain, path, dtype.dtype, dspace,
+                                            HDF5._link_properties(path), dprop,
+                                            HDF5.DEFAULT_PROPERTIES), file(parent.plain))
         if dtype == JLD_REF_TYPE
             write_attribute(dset, "julia eltype", full_typename(f, T))
         end
@@ -735,8 +737,9 @@ function write_compound(parent::Union{JldFile, JldGroup}, name::String,
     dspace = HDF5.Dataspace(HDF5.h5s_create(HDF5.H5S_SCALAR))
     dprop, dprop_close = dset_create_properties(parent, length(buf), buf; kargs...)
     try
-        dset = create_dataset(parent.plain, name, dtype.dtype, dspace, HDF5._link_properties(name),
-                             dprop, HDF5.DEFAULT_PROPERTIES, HDF5.DEFAULT_PROPERTIES)
+        dset = HDF5.Dataset(HDF5.h5d_create(parent.plain, name, dtype.dtype, dspace,
+                                            HDF5._link_properties(name), dprop,
+                                            HDF5.DEFAULT_PROPERTIES), file(parent.plain))
         write_dataset(dset, dtype.dtype, buf)
         return dset
     finally
@@ -1345,8 +1348,8 @@ function __init__()
     global _runtime_properties
     _runtime_properties[] = COMPACT_PROPERTIES
 
-    HDF5.rehash!(_typedict, length(_typedict.keys))
-    HDF5.rehash!(BUILTIN_TYPES.dict, length(BUILTIN_TYPES.dict.keys))
+    Base.rehash!(_typedict, length(_typedict.keys))
+    Base.rehash!(BUILTIN_TYPES.dict, length(BUILTIN_TYPES.dict.keys))
 
     nothing
 end
