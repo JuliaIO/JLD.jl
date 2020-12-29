@@ -781,8 +781,8 @@ for compatible in (false, true), compress in (false, true)
     end
     jldopen(fn, "r") do file
         @test(read(file["ms"]) == β)
-        @test(!exists(file, "g/ms"))
-        @test(!exists(file, "g"))
+        @test(!haskey(file, "g/ms"))
+        @test(!haskey(file, "g"))
     end
 
 end # compress in (false,true)

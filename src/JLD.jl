@@ -1318,15 +1318,9 @@ function path2modsym(filename::AbstractString)
     Symbol(bname)
 end
 
-# deprecated for HDF5 v0.14+, but use deprecated binding to have common function with
-# e.g. MAT.jl
-import HDF5: exists
-exists(p::Union{JldFile, JldGroup, JldDataset}, path::String) = haskey(p, path)
-
 export
     addrequire,
     creator,
-    exists,
     ismmappable,
     jldopen,
     delete_object,
@@ -1355,4 +1349,11 @@ function __init__()
 end
 
 include("JLD00.jl")
+
+###
+### v0.12.0 deprecations
+###
+
+Base.@deprecate_binding exists haskey
+
 end

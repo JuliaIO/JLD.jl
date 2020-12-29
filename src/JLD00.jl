@@ -1141,11 +1141,6 @@ function addrequire(file::JldFile, filename::AbstractString)
     write(file, pathrequire, files)
 end
 
-# deprecated for HDF5 v0.14+, but use deprecated binding to have common function with
-# e.g. MAT.jl
-import HDF5: exists
-exists(p::Union{JldFile, JldGroup, JldDataset}, path::String) = haskey(p, path)
-
 export
     addrequire,
     ismmappable,
