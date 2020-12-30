@@ -682,9 +682,9 @@ for compatible in (false, true), compress in (false, true)
         end
     end
     fid = jldopen(fn, "r")
-    @test names(fid) == String["mygroup"]
+    @test keys(fid) == String["mygroup"]
     g = fid["mygroup"]
-    @test names(g) == String["x"]
+    @test keys(g) == String["x"]
     @test read(g, "x") == 3.2
     close(g)
     close(fid)
