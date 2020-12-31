@@ -40,7 +40,7 @@ jobs:
       - uses: julia-actions/julia-buildpkg@latest
       - uses: julia-actions/julia-runtest@latest
       - run: |
-          julia --project --code-coverage=user -e "
+          julia --project --depwarn=yes --code-coverage=user -e "
             using Pkg
             url = \"https://github.com/JuliaIO/JLDArchives.jl.git\"
             if VERSION >= v\"1.4\"
