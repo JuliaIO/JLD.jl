@@ -1172,7 +1172,7 @@ macro save(filename, vars...)
         # Save all variables in the current module
         writeexprs = Vector{Expr}(undef, 0)
         m = __module__
-        for vname in keys(m)
+        for vname in names(m)
             s = string(vname)
             if !occursin(r"^_+[0-9]*$", s) && s != "ans" # skip IJulia history vars
                 v = Core.eval(m, vname)
