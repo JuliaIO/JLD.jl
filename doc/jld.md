@@ -29,7 +29,7 @@ b = file["a"][20:30]
 close(file)
 ```
 
-You can use the `names` function to get an array of the dataset or group names in you `*.jld` file ( useful if you forgot your dataset structure and doesn't want to load the entire dataset in memory ). It can be applied on `JldFile` and `JldGroup` types. Consider the following example :
+You can use the `keys` function to get an array of the dataset or group names in you `*.jld` file ( useful if you forgot your dataset structure and doesn't want to load the entire dataset in memory ). It can be applied on `JldFile` and `JldGroup` types. Consider the following example :
 
 ```julia
 file = jldopen("mydata.jld","w")
@@ -41,18 +41,18 @@ close(file)
 
 ```julia
 julia> file = jldopen("mydata.jld","r")
-julia> names(file)
+julia> keys(file)
 2-element Array{String,1}:
  "dataset"
  "group"
-julia> names(file["group"])
+julia> keys(file["group"])
 2-element Array{String,1}:
  "dataset0"
  "dataset1"
 julia> read(file["group/dataset0"])
 1:7
-julia> names(file["dataset"])
-ERROR: MethodError: no method matching names(::JLD.JldDataset)...
+julia> keys(file["dataset"])
+ERROR: MethodError: no method matching keys(::JLD.JldDataset)...
 julia> typeof(file["dataset"])
 JLD.JldDataset
 ```

@@ -4,8 +4,7 @@ using HDF5, FileIO
 
 import HDF5: file, create_group, open_group, delete_object, name, ismmappable, readmmap
 import Base: close, convert, datatype_pointerfree, delete!, dump, eltype, getindex, iterate,
-             length, names, ndims, read, setindex!, show, size, sizeof, unsafe_convert,
-             write
+             length, ndims, read, setindex!, show, size, sizeof, unsafe_convert, write
 
 @noinline gcuse(x) = x # because of use of `pointer`, need to mark gc-use end explicitly
 
@@ -346,7 +345,7 @@ ismmappable(obj::JldDataset) = ismmappable(obj.plain)
 readmmap(obj::JldDataset, args...) = readmmap(obj.plain, args...)
 setindex!(parent::Union{JldFile, JldGroup}, val, path::String) = write(parent, path, val)
 
-Base.iterate(parent::Union{JldFile, JldGroup}, state=(names(parent), 1)) = state[2] > length(state[1]) ? nothing :
+Base.iterate(parent::Union{JldFile, JldGroup}, state=(keys(parent), 1)) = state[2] > length(state[1]) ? nothing :
                                                      (parent[state[1][state[2]]], (state[1], state[2]+1))
 
 
@@ -368,7 +367,7 @@ end
 read(parent::Union{JldFile,JldGroup}, name::Symbol) = read(parent, String(string(name)))
 
 function read(obj::JldGroup)
-    nms = names(obj)
+    nms = keys(obj)
     val = Dict{String, Any}()
     for nm in nms
         val[nm] = read(obj[nm])
@@ -810,7 +809,7 @@ end
 getindex(dset::JldDataset, I::Union{AbstractRange{Int},Integer,Colon}...) = getindex(dset, ntuple(i-> isa(I[i], Colon) ? (1:size(dset,i)) : I[i], length(I))...)
 setindex!(dset::JldDataset, x, I::Union{AbstractRange{Int},Integer,Colon}...) = setindex!(dset, x, ntuple(i-> isa(I[i], Colon) ? (1:size(dset,i)) : I[i], length(I))...)
 
-length(x::Union{JldFile, JldGroup}) = length(names(x))
+length(x::Union{JldFile, JldGroup}) = length(keys(x))
 
 ### Custom serialization
 
@@ -1147,7 +1146,7 @@ function truncate_module_path(file::JldFile, mod::Module)
     push!(file.truncatemodules, string(mod))
 end
 
-function names(parent::Union{JldFile, JldGroup})
+function Base.keys(parent::Union{JldFile, JldGroup})
     n = keys(parent.plain)
     keep = trues(length(n))
     reserved = [pathrefs[2:end], pathtypes[2:end], pathrequire[2:end], pathcreator[2:end]]
@@ -1214,7 +1213,7 @@ macro load(filename, vars...)
         vars = Symbol[]
         f = jldopen(filename)
         try
-            for n in names(f)
+            for n in keys(f)
                 obj = f[n]
                 try
                     if isa(obj, JldDataset)
@@ -1269,7 +1268,7 @@ FileIO.save(f::File{format"JLD"}, value...; kwargs...) = error("Must supply a na
 # load with just a filename returns a dictionary containing all the variables
 function FileIO.load(f::File{format"JLD"})
     jldopen(FileIO.filename(f), "r") do file
-        Dict{String,Any}([(var, read(file, var)) for var in names(file)])
+        Dict{String,Any}([(var, read(file, var)) for var in keys(file)])
     end
 end
 # When called with explicitly requested variable names, return each one
@@ -1318,15 +1317,9 @@ function path2modsym(filename::AbstractString)
     Symbol(bname)
 end
 
-# deprecated for HDF5 v0.14+, but use deprecated binding to have common function with
-# e.g. MAT.jl
-import HDF5: exists
-exists(p::Union{JldFile, JldGroup, JldDataset}, path::String) = haskey(p, path)
-
 export
     addrequire,
     creator,
-    exists,
     ismmappable,
     jldopen,
     delete_object,
@@ -1355,4 +1348,21 @@ function __init__()
 end
 
 include("JLD00.jl")
+
+###
+### v0.12.0 deprecations
+###
+
+import HDF5: exists
+export exists
+@noinline function exists(p::Union{JldFile, JldGroup, JldDataset}, path::String)
+    Base.depwarn("`exists(p, path)` is deprecated, use `haskey(p, path)` instead.", :exists)
+    return haskey(p, path)
+end
+
+@noinline function Base.names(parent::Union{JldFile, JldGroup})
+    Base.depwarn("`names(parent)` is deprecated, use `keys(parent)` instead.", :names)
+    return keys(parent)
+end
+
 end

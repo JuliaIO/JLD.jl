@@ -6,7 +6,7 @@
 # JLD, or MAT files. This is the super class of HDF5File, HDF5Group,
 # JldFile, JldGroup, Matlabv5File, and MatlabHDF5File.
 #
-# Types inheriting from DataFile should have names, read, and write
+# Types inheriting from DataFile should have keys, read, and write
 # methods
 
 abstract type DataFile end
@@ -39,7 +39,7 @@ read(f::Base.Callable, parent::DataFile, name::ASCIIString...) =
 
 # Read every variable in the file
 function read(f::DataFile)
-    vars = names(f)
+    vars = keys(f)
     vals = Vector{Any}(undef, length(vars))
     for i = 1:length(vars)
         vals[i] = read(f, vars[i])

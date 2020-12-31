@@ -7,8 +7,7 @@ using Printf
 using HDF5
 # Add methods to...
 import HDF5: file, create_group, open_group, delete_object, name, ismmappable, readmmap
-import Base: close, dump, getindex, iterate, length, names, read, setindex!, size, show, delete!,
-             write
+import Base: close, dump, getindex, iterate, length, read, setindex!, size, show, delete!, write
 import ..JLD: JLD, _joinpath
 
 # See julia issue #8907
@@ -233,7 +232,7 @@ ismmappable(obj::JldDataset) = ismmappable(obj.plain)
 readmmap(obj::JldDataset, args...) = readmmap(obj.plain, args...)
 setindex!(parent::Union{JldFile, JldGroup}, val, path::String) = write(parent, path, val)
 
-Base.iterate(parent::Union{JldFile, JldGroup}, state=(names(parent), 1)) = state[2] > length(state[1]) ? nothing :
+Base.iterate(parent::Union{JldFile, JldGroup}, state=(keys(parent), 1)) = state[2] > length(state[1]) ? nothing :
                                                      (parent[state[1][state[2]]], (state[1], state[2]+1))
 
 
@@ -901,11 +900,11 @@ function setindex!(dset::JldDataset, X::Array, indices::Base.RangeIndex...)
     HDF5._setindex!(dset, T, X, indices...)
 end
 
-length(x::Union{JldFile, JldGroup}) = length(names(x))
+length(x::Union{JldFile, JldGroup}) = length(keys(x))
 
 ### Dump ###
 function dump(io::IO, parent::Union{JldFile, JldGroup}, n::Int, indent)
-    nms = names(parent)
+    nms = keys(parent)
     println(io, typeof(parent), " len ", length(nms))
     if n > 0
         i = 1
@@ -1019,7 +1018,7 @@ function isversionless(l::Array{Int}, r::Array{Int})
     false
 end
 
-function names(parent::Union{JldFile, JldGroup})
+function Base.keys(parent::Union{JldFile, JldGroup})
     n = keys(parent.plain)
     keep = trues(length(n))
     reserved = [pathrefs[2:end], pathtypes[2:end], pathrequire[2:end]]
@@ -1066,7 +1065,7 @@ macro load(filename, vars...)
         readexprs = Vector{Expr}(undef, 0)
         vars = Vector{Expr}(undef, 0)
         f = jldopen(filename)
-        nms = names(f)
+        nms = keys(f)
         for n in nms
             obj = f[n]
             if isa(obj, JldDataset)
@@ -1118,7 +1117,7 @@ end
 # load with just a filename returns a dictionary containing all the variables
 function load(filename::AbstractString)
     jldopen(filename, "r") do file
-        Dict{String,Any}([(var, read(file, var)) for var in names(file)])
+        Dict{String,Any}([(var, read(file, var)) for var in keys(file)])
     end
 end
 # When called with explicitly requested variable names, return each one
@@ -1141,11 +1140,6 @@ function addrequire(file::JldFile, filename::AbstractString)
     write(file, pathrequire, files)
 end
 
-# deprecated for HDF5 v0.14+, but use deprecated binding to have common function with
-# e.g. MAT.jl
-import HDF5: exists
-exists(p::Union{JldFile, JldGroup, JldDataset}, path::String) = haskey(p, path)
-
 export
     addrequire,
     ismmappable,
@@ -1157,4 +1151,14 @@ export
     @save,
     load,
     save
+
+###
+### v0.12.0 deprecations
+###
+
+@noinline function Base.names(parent::Union{JldFile, JldGroup})
+    Base.depwarn("`names(parent)` is deprecated, use `keys(parent)` instead.", :names)
+    return keys(parent)
+end
+
 end
