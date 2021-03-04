@@ -911,7 +911,7 @@ a = load(fn)
 @test a["stray"] == "cat"
 
 # Test whether we get a stack overflow with FileIO interface (#46)
-@test_throws ErrorException save(fn, 7)
+@test_throws Union{ErrorException,CapturedException} save(fn, 7)
 
 # Test load macros
 jldopen(fn, "w") do file
