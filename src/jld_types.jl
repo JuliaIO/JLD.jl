@@ -720,11 +720,20 @@ function jldatatype(parent::JldFile, dtype::HDF5.Datatype)
         # Verify that types match
         newtype = h5type(parent, T, false).dtype
         if T !== Expr  # in julia >= 0.7 Expr has 1 fewer fields; the trailing field can be ignored.
-            # libhdf5 compares dtype != newtype if a member field is a H5T_REFERENCE with
-            # dtype being the committed datatype and newtype being the new transient type.
-            # Copying dtype appears to make equal types compare equal again.
-            dtype′ = HDF5.h5t_committed(dtype) ? HDF5.Datatype(HDF5.h5t_copy(dtype.id)) : dtype
-            dtype′ == newtype || throw(TypeMismatchException(typename))
+            if dtype == newtype
+                # If the types compare equal, continue
+            else
+                # Otherwise the types may be compatible yet still naively compare as
+                # unequal. This seems to be related to H5T_REFERENCE members in the compound
+                # datatype (starting with libhdf5 v1.12) comparing unequal if one half has
+                # been committed while the other is still transient.
+                #
+                # Both dtype and newtype may be committed (former) or contain committed member
+                # types loaded from the cache (latter), so copy both for comparison.
+                dtype′  = HDF5.Datatype(HDF5.h5t_copy(dtype.id))
+                newtype = HDF5.Datatype(HDF5.h5t_copy(newtype.id))
+                dtype′ == newtype || throw(TypeMismatchException(typename))
+            end
         end
 
         # Store type in type index
