@@ -986,3 +986,21 @@ if !Sys.iswindows()
         rm(fn)
     end
 end
+
+# Issues #294, #297
+struct T294{T}
+    a::T
+end
+let fid = jldopen(fn, "w")
+    a = T294((1, 2))
+    b = T294(a)
+    c = T294(b)
+    write(fid, "a", a)
+    write(fid, "b", b)
+    write(fid, "c", c)
+    close(fid)
+
+    @test load(fn, "a") == a
+    @test load(fn, "b") == b
+    @test load(fn, "c") == c
+end
