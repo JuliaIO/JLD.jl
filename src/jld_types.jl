@@ -307,11 +307,22 @@ end
 # For cases not defined above: If the type is mutable and non-empty,
 # this is a reference. If the type is immutable, this is a type itself.
 if INLINE_POINTER_IMMUTABLE
+    if VERSION >= v"1.7.0-DEV.1279"
+            h5fieldtype(parent::JldFile, @nospecialize(T), commit::Bool) =
+                isconcretetype(T) && (!(Base.ismutabletype(T)) || T.size == 0) ? h5type(parent, T, commit) : JLD_REF_TYPE
+    else
     h5fieldtype(parent::JldFile, @nospecialize(T), commit::Bool) =
-        isconcretetype(T) && (!T.mutable || T.size == 0) ? h5type(parent, T, commit) : JLD_REF_TYPE
+        isconcretetype(T) && (!((VERSION >= v"1.7.0-DEV.1279") ? (Base.ismutabletype(T)) : (T.mutable)) || T.size == 0) ? h5type(parent, T, commit) : JLD_REF_TYPE
+    end
 else
-    h5fieldtype(parent::JldFile, @nospecialize(T), commit::Bool) =
-        isconcretetype(T) && (!T.mutable || T.size == 0) && datatype_pointerfree(T) ? h5type(parent, T, commit) : JLD_REF_TYPE
+        if VERSION >= v"1.7.0-DEV.1279"
+            h5fieldtype(parent::JldFile, @nospecialize(T), commit::Bool) =
+        isconcretetype(T) && (!(Base.ismutabletype(T) || T.size == 0) && datatype_pointerfree(T) ? h5type(parent, T, commit) : JLD_REF_TYPE
+        else
+            h5fieldtype(parent::JldFile, @nospecialize(T), commit::Bool) =
+        isconcretetype(T) && (!((VERSION >= v"1.7.0-DEV.1279") ? (Base.ismutabletype(T)) : (T.mutable)) || T.size == 0) && datatype_pointerfree(T) ? h5type(parent, T, commit) : JLD_REF_TYPE
+        end
+    
 end
 
 function h5type(parent::JldFile, T::Type{Bool}, commit::Bool)
@@ -506,14 +517,23 @@ function gen_jlconvert(@nospecialize(T))
     if isa(T, TupleType)
         return _gen_jlconvert_tuple(typeinfo, T)
     elseif isempty(fieldnames(T))
-        if T.size == 0 && !T.mutable
-            return T.instance
+        if VERSION >= v"1.7.0-DEV.1279"
+            if T.size == 0 && !Base.ismutabletype(T)
+                return T.instance
+            else
+               return :(_jlconvert_bits(T, ptr))
+            end
         else
-           return :(_jlconvert_bits(T, ptr))
+            if T.size == 0 && !T.mutable
+                return T.instance
+            else
+               return :(_jlconvert_bits(T, ptr))
+            end
         end
+        
     elseif T.size == 0
         return :(ccall(:jl_new_struct_uninit, Ref{T}, (Any,), T))
-    elseif T.mutable
+    elseif ((VERSION >= v"1.7.0-DEV.1279") ? (Base.ismutabletype(T)) : (T.mutable))
         return _gen_jlconvert_type(typeinfo, T)
     else
         return _gen_jlconvert_immutable(typeinfo, T)
@@ -526,7 +546,7 @@ function gen_jlconvert!(@nospecialize(T))
         error("unimplemented")
     elseif isempty(fieldnames(T))
         if T.size == 0
-            if !T.mutable
+            if !((VERSION >= v"1.7.0-DEV.1279") ? (Base.ismutabletype(T)) : (T.mutable))
                 return nothing
             else
                 return :(unsafe_store!(convert(Ptr{Any}, out), $(T.instance)); nothing)
@@ -536,7 +556,7 @@ function gen_jlconvert!(@nospecialize(T))
         end
     elseif T.size == 0
         return nothing
-    elseif T.mutable
+    elseif ((VERSION >= v"1.7.0-DEV.1279") ? (Base.ismutabletype(T)) : (T.mutable))
         return _gen_jlconvert_type!(typeinfo, T)
     else
         return _gen_jlconvert_immutable!(typeinfo, T)
