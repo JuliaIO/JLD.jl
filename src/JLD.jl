@@ -458,7 +458,7 @@ function read_vals_default(obj::JldDataset, dtype::HDF5.Datatype, T::Type, dspac
                            dsel_id::HDF5.hid_t, dims::Tuple{Vararg{Int}})
     out = Array{T}(undef, dims)
     # Empty objects don't need to be read at all
-    T.size == 0 && !T.mutable && return out
+    T.size == 0 && !((VERSION >= v"1.7.0-DEV.1279") ? (Base.ismutabletype(T)) : (T.mutable)) && return out
 
     # Read from file
     n = prod(dims)
@@ -468,7 +468,7 @@ function read_vals_default(obj::JldDataset, dtype::HDF5.Datatype, T::Type, dspac
 
     f = file(obj)
     h5offset = pointer(buf)
-    if datatype_pointerfree(T) && !T.mutable
+    if datatype_pointerfree(T) && !((VERSION >= v"1.7.0-DEV.1279") ? (Base.ismutabletype(T)) : (T.mutable))
         jloffset = pointer(out)
         jlsz = T.size
 
@@ -693,7 +693,7 @@ function write_ref(parent::JldFile, data, wsession::JldWriteSession)
     # Add reference to reference list
     ref = HDF5.Reference(HDF5.hobj_ref_t(object_info(dset).addr))
     close(dset)
-    if !isa(data, Tuple) && typeof(data).mutable
+    if !isa(data, Tuple) && ((VERSION >= v"1.7.0-DEV.1279") ? (Base.ismutabletype(typeof(data))) : (typeof(data).mutable))
         wsession.h5ref[data] = ref
     end
     ref
