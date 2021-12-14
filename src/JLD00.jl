@@ -10,6 +10,10 @@ import HDF5: file, create_group, open_group, delete_object, name, ismmappable, r
 import Base: close, dump, getindex, iterate, length, read, setindex!, size, show, delete!, write
 import ..JLD: JLD, _joinpath
 
+@static if VERSION < v"1.7"
+    import ..JLD: ismutabletype
+end
+
 # See julia issue #8907
 replacements = Any[]
 push!(replacements, :(s = replace(s, r"Uint(?=\d{1,3})" => "UInt")))
