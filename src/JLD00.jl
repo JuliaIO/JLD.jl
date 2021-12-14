@@ -5,6 +5,7 @@
 module JLD00
 using Printf
 using HDF5
+using Compat
 # Add methods to...
 import HDF5: file, create_group, open_group, delete_object, name, ismmappable, readmmap
 import Base: close, dump, getindex, iterate, length, read, setindex!, size, show, delete!, write
@@ -472,7 +473,7 @@ function read(obj::JldDataset, T::DataType)
         if length(v) != length(n)
             error("Wrong number of fields")
         end
-        if !T.mutable
+        if !ismutabletype(T)
             x = ccall(:jl_new_structv, Any, (Any,Ptr{Cvoid},UInt32), T, v, length(fieldnames(T)))
         else
             x = ccall(:jl_new_struct_uninit, Any, (Any,), T)

@@ -308,10 +308,10 @@ end
 # this is a reference. If the type is immutable, this is a type itself.
 if INLINE_POINTER_IMMUTABLE
     h5fieldtype(parent::JldFile, @nospecialize(T), commit::Bool) =
-        isconcretetype(T) && (!T.mutable || T.size == 0) ? h5type(parent, T, commit) : JLD_REF_TYPE
+        isconcretetype(T) && (!ismutabletype(T) || T.size == 0) ? h5type(parent, T, commit) : JLD_REF_TYPE
 else
     h5fieldtype(parent::JldFile, @nospecialize(T), commit::Bool) =
-        isconcretetype(T) && (!T.mutable || T.size == 0) && datatype_pointerfree(T) ? h5type(parent, T, commit) : JLD_REF_TYPE
+        isconcretetype(T) && (!ismutabletype(T) || T.size == 0) && datatype_pointerfree(T) ? h5type(parent, T, commit) : JLD_REF_TYPE
 end
 
 function h5type(parent::JldFile, T::Type{Bool}, commit::Bool)
@@ -506,14 +506,14 @@ function gen_jlconvert(@nospecialize(T))
     if isa(T, TupleType)
         return _gen_jlconvert_tuple(typeinfo, T)
     elseif isempty(fieldnames(T))
-        if T.size == 0 && !T.mutable
+        if T.size == 0 && !ismutabletype(T)
             return T.instance
         else
            return :(_jlconvert_bits(T, ptr))
         end
     elseif T.size == 0
         return :(ccall(:jl_new_struct_uninit, Ref{T}, (Any,), T))
-    elseif T.mutable
+    elseif ismutabletype(T)
         return _gen_jlconvert_type(typeinfo, T)
     else
         return _gen_jlconvert_immutable(typeinfo, T)
@@ -526,7 +526,7 @@ function gen_jlconvert!(@nospecialize(T))
         error("unimplemented")
     elseif isempty(fieldnames(T))
         if T.size == 0
-            if !T.mutable
+            if !ismutabletype(T)
                 return nothing
             else
                 return :(unsafe_store!(convert(Ptr{Any}, out), $(T.instance)); nothing)
@@ -536,7 +536,7 @@ function gen_jlconvert!(@nospecialize(T))
         end
     elseif T.size == 0
         return nothing
-    elseif T.mutable
+    elseif ismutabletype(T)
         return _gen_jlconvert_type!(typeinfo, T)
     else
         return _gen_jlconvert_immutable!(typeinfo, T)

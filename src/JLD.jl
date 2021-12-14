@@ -1,6 +1,7 @@
 module JLD
 using Printf
 using HDF5, FileIO
+using Compat
 
 import HDF5: file, create_group, open_group, delete_object, name, ismmappable, readmmap
 import Base: close, convert, datatype_pointerfree, delete!, dump, eltype, getindex, iterate,
@@ -458,7 +459,7 @@ function read_vals_default(obj::JldDataset, dtype::HDF5.Datatype, T::Type, dspac
                            dsel_id::HDF5.hid_t, dims::Tuple{Vararg{Int}})
     out = Array{T}(undef, dims)
     # Empty objects don't need to be read at all
-    T.size == 0 && !T.mutable && return out
+    T.size == 0 && !ismutabletype(T) && return out
 
     # Read from file
     n = prod(dims)
@@ -468,7 +469,7 @@ function read_vals_default(obj::JldDataset, dtype::HDF5.Datatype, T::Type, dspac
 
     f = file(obj)
     h5offset = pointer(buf)
-    if datatype_pointerfree(T) && !T.mutable
+    if datatype_pointerfree(T) && !ismutabletype(T)
         jloffset = pointer(out)
         jlsz = T.size
 
@@ -693,7 +694,7 @@ function write_ref(parent::JldFile, data, wsession::JldWriteSession)
     # Add reference to reference list
     ref = HDF5.Reference(HDF5.hobj_ref_t(object_info(dset).addr))
     close(dset)
-    if !isa(data, Tuple) && typeof(data).mutable
+    if !isa(data, Tuple) && ismutable(data)
         wsession.h5ref[data] = ref
     end
     ref
