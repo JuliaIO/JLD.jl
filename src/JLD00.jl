@@ -472,7 +472,7 @@ function read(obj::JldDataset, T::DataType)
         if length(v) != length(n)
             error("Wrong number of fields")
         end
-        if !T.mutable
+        if !ismutabletype(T)
             x = ccall(:jl_new_structv, Any, (Any,Ptr{Cvoid},UInt32), T, v, length(fieldnames(T)))
         else
             x = ccall(:jl_new_struct_uninit, Any, (Any,), T)

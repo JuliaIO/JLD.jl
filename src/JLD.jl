@@ -8,6 +8,10 @@ import Base: close, convert, datatype_pointerfree, delete!, dump, eltype, getind
 
 @noinline gcuse(x) = x # because of use of `pointer`, need to mark gc-use end explicitly
 
+@static if VERSION < v"1.7"
+    ismutabletype(::Type{T}) where T = T.mutable
+end
+
 const magic_base = "Julia data file (HDF5), version "
 const version_current = v"0.1.3"
 const pathrefs = "/_refs"
@@ -458,7 +462,7 @@ function read_vals_default(obj::JldDataset, dtype::HDF5.Datatype, T::Type, dspac
                            dsel_id::HDF5.hid_t, dims::Tuple{Vararg{Int}})
     out = Array{T}(undef, dims)
     # Empty objects don't need to be read at all
-    T.size == 0 && !T.mutable && return out
+    T.size == 0 && !ismutabletype(T) && return out
 
     # Read from file
     n = prod(dims)
@@ -468,7 +472,7 @@ function read_vals_default(obj::JldDataset, dtype::HDF5.Datatype, T::Type, dspac
 
     f = file(obj)
     h5offset = pointer(buf)
-    if datatype_pointerfree(T) && !T.mutable
+    if datatype_pointerfree(T) && !ismutabletype(T)
         jloffset = pointer(out)
         jlsz = T.size
 
@@ -693,7 +697,7 @@ function write_ref(parent::JldFile, data, wsession::JldWriteSession)
     # Add reference to reference list
     ref = HDF5.Reference(HDF5.hobj_ref_t(object_info(dset).addr))
     close(dset)
-    if !isa(data, Tuple) && typeof(data).mutable
+    if !isa(data, Tuple) && ismutable(data)
         wsession.h5ref[data] = ref
     end
     ref
