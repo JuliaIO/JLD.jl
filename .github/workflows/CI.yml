@@ -43,12 +43,10 @@ jobs:
           julia --project --depwarn=yes --code-coverage=user -e "
             using Pkg
             url = \"https://github.com/JuliaIO/JLDArchives.jl.git\"
-            if VERSION >= v\"1.4\"
-                Pkg.GitTools.clone(Pkg.Types.Context(), url, \"JLDArchives\")
-            else
-                Pkg.GitTools.clone(url, \"JLDArchives\")
-            end
-            include(joinpath(\"JLDArchives\", \"test\", \"runtests.jl\"))"
+            Pkg.develop(PackageSpec(url=url))
+            using JLDArchives
+            include(joinpath(dirname(dirname(pathof(JLDArchives))), \"test\", \"runtests.jl\"))
+          "
       #- uses: julia-actions/julia-processcoverage@latest
       #- uses: codecov/codecov-action@v1
       #  with:
