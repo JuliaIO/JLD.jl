@@ -1,19 +1,13 @@
 module JLD
 using Printf
 using HDF5, FileIO
+using Compat
 
 import HDF5: file, create_group, open_group, delete_object, name, ismmappable, readmmap
 import Base: close, convert, datatype_pointerfree, delete!, dump, eltype, getindex, iterate,
              length, ndims, read, setindex!, show, size, sizeof, unsafe_convert, write
 
 @noinline gcuse(x) = x # because of use of `pointer`, need to mark gc-use end explicitly
-
-@static if VERSION < v"1.7"
-    ismutabletype(::Type{T}) where T = T.mutable
-end
-@static if VERSION < v"1.5"
-    ismutable(x) = ismutabletype(typeof(x))
-end
 
 const magic_base = "Julia data file (HDF5), version "
 const version_current = v"0.1.3"

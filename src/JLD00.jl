@@ -5,14 +5,11 @@
 module JLD00
 using Printf
 using HDF5
+using Compat
 # Add methods to...
 import HDF5: file, create_group, open_group, delete_object, name, ismmappable, readmmap
 import Base: close, dump, getindex, iterate, length, read, setindex!, size, show, delete!, write
 import ..JLD: JLD, _joinpath
-
-@static if VERSION < v"1.7"
-    import ..JLD: ismutabletype
-end
 
 # See julia issue #8907
 replacements = Any[]
