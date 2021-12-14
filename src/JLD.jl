@@ -11,6 +11,9 @@ import Base: close, convert, datatype_pointerfree, delete!, dump, eltype, getind
 @static if VERSION < v"1.7"
     ismutabletype(::Type{T}) where T = T.mutable
 end
+@static if VERSION < v"1.5"
+    ismutable(x) = ismutabletype(typeof(x))
+end
 
 const magic_base = "Julia data file (HDF5), version "
 const version_current = v"0.1.3"
