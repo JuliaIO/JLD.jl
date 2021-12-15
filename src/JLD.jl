@@ -1,6 +1,6 @@
 module JLD
 using Printf
-using HDF5, FileIO
+using HDF5, H5Zblosc, FileIO
 using Compat
 
 import HDF5: file, create_group, open_group, delete_object, name, ismmappable, readmmap
