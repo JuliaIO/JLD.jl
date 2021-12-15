@@ -1,18 +1,16 @@
 name = "JLD"
 uuid = "4138dd39-2aa7-5051-a626-17a0bb65d9c8"
-version = "0.12.5"
+version = "0.12.4"
 
 [deps]
 Compat = "34da2185-b29b-5c13-b0c7-acf172513d20"
 FileIO = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
 HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
-H5Zblosc = "c8ec2601-a99c-407f-b158-e79c03c2f5f7"
 
 [compat]
 FileIO = "1"
 HDF5 = "0.14, 0.15, 0.16"
-H5Zblosc = "0.1"
 Compat = "3.40"
 julia = "1.3"
 
