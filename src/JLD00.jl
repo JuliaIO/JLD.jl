@@ -95,17 +95,17 @@ function jldopen(filename::AbstractString, rd::Bool, wr::Bool, cr::Bool, tr::Boo
         error("File ", filename, " cannot be found")
     end
     version = version_current
-    pa = create_property(HDF5.H5P_FILE_ACCESS)
+    pa = create_property(HDF5.API.H5P_FILE_ACCESS)
     try
-        pa[:fclose_degree] = HDF5.H5F_CLOSE_STRONG
+        pa[:fclose_degree] = HDF5.API.H5F_CLOSE_STRONG
         if cr && (tr || !isfile(filename))
             # We're truncating, so we don't have to check the format of an existing file
             # Set the user block to 512 bytes, to save room for the header
-            p = create_property(HDF5.H5P_FILE_CREATE)
+            p = create_property(HDF5.API.H5P_FILE_CREATE)
             local f
             try
                 p[:userblock] = 512
-                f = HDF5.h5f_create(filename, HDF5.H5F_ACC_TRUNC, p.id, pa.id)
+                f = HDF5.API.API.h5f_create(filename, HDF5.API.H5F_ACC_TRUNC, p.id, pa.id)
             finally
                 close(p)
             end
@@ -126,7 +126,7 @@ function jldopen(filename::AbstractString, rd::Bool, wr::Bool, cr::Bool, tr::Boo
                 close(rawfid)
             end
             if length(magic) ≥ ncodeunits(magic_base) && view(magic, 1:ncodeunits(magic_base)) == Vector{UInt8}(codeunits(magic_base))
-                f = HDF5.h5f_open(filename, wr ? HDF5.H5F_ACC_RDWR : HDF5.H5F_ACC_RDONLY, pa.id)
+                f = HDF5.API.h5f_open(filename, wr ? HDF5.API.H5F_ACC_RDWR : HDF5.API.H5F_ACC_RDONLY, pa.id)
                 version = unsafe_string(pointer(magic) + length(magic_base))
                 fj = JldFile(HDF5.File(f, filename), version, true, true, mmaparrays)
                 # Load any required files/packages
@@ -175,19 +175,19 @@ function jldopen(f::Function, args...)
 end
 
 function jldobject(obj_id::HDF5.hid_t, parent)
-    obj_type = HDF5.h5i_get_type(obj_id)
-    obj_type == HDF5.H5I_GROUP ? JldGroup(HDF5.Group(obj_id, file(parent.plain)), file(parent)) :
-    obj_type == HDF5.H5I_DATATYPE ? HDF5.Datatype(obj_id) :
-    obj_type == HDF5.H5I_DATASET ? JldDataset(HDF5.Dataset(obj_id, file(parent.plain)), file(parent)) :
+    obj_type = HDF5.API.h5i_get_type(obj_id)
+    obj_type == HDF5.API.H5I_GROUP ? JldGroup(HDF5.Group(obj_id, file(parent.plain)), file(parent)) :
+    obj_type == HDF5.API.H5I_DATATYPE ? HDF5.Datatype(obj_id) :
+    obj_type == HDF5.API.H5I_DATASET ? JldDataset(HDF5.Dataset(obj_id, file(parent.plain)), file(parent)) :
     error("Invalid object type for path ", path)
 end
 
 getindex(parent::Union{JldFile, JldGroup}, path::String) =
-    jldobject(HDF5.h5o_open(parent.plain.id, path, HDF5.H5P_DEFAULT), parent)
+    jldobject(HDF5.API.h5o_open(parent.plain.id, path, HDF5.API.H5P_DEFAULT), parent)
 
 function getindex(parent::Union{JldFile, JldGroup, JldDataset}, r::HDF5.Reference)
     r == HDF5.Reference() && error("Reference is null")
-    obj_id = HDF5.h5r_dereference(parent.plain.id, HDF5.H5P_DEFAULT, HDF5.H5R_OBJECT, r)
+    obj_id = HDF5.API.h5r_dereference(parent.plain.id, HDF5.API.H5P_DEFAULT, HDF5.API.H5R_OBJECT, r)
     jldobject(obj_id, parent)
 end
 
@@ -591,7 +591,7 @@ function write(parent::Union{JldFile, JldGroup}, name::String, n::Nothing, astyp
     try
         dspace = dataspace(nothing)
         dset = HDF5.Dataset(HDF5.h5d_create(HDF5.parents_create(HDF5.checkvalid(parent.plain), name, HDF5.H5T_NATIVE_UINT8, dspace.id,
-                           HDF5.H5P_DEFAULT, HDF5.H5P_DEFAULT, HDF5.H5P_DEFAULT)...), file(parent.plain))
+                           HDF5.API.H5P_DEFAULT, HDF5.API.H5P_DEFAULT, HDF5.API.H5P_DEFAULT)...), file(parent.plain))
         write_attribute(dset, name_type_attr, astype)
     finally
         close(dspace)

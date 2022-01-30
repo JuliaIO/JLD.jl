@@ -5,7 +5,7 @@
 const INLINE_TUPLE = false
 const INLINE_POINTER_IMMUTABLE = false
 
-const JLD_REF_TYPE = JldDatatype(HDF5.Datatype(HDF5.H5T_STD_REF_OBJ, false), 0)
+const JLD_REF_TYPE = JldDatatype(HDF5.Datatype(HDF5.API.H5T_STD_REF_OBJ, false), 0)
 const BUILTIN_TYPES = Set([Symbol, Type, BigFloat, BigInt])
 const JL_TYPENAME_TRANSLATE = Dict{String, String}()
 const JLCONVERT_INFO = Dict{Any, Any}()
@@ -36,7 +36,7 @@ function JldTypeInfo(parent::JldFile, types::TypesType, commit::Bool)
     for i = 1:length(types)
         dtype = dtypes[i] = h5fieldtype(parent, types[i], commit)
         offsets[i] = offset
-        offset += HDF5.h5t_get_size(dtype)
+        offset += HDF5.API.h5t_get_size(dtype)
     end
     JldTypeInfo(dtypes, offsets, offset)
 end
@@ -155,7 +155,7 @@ h5fieldtype(parent::JldFile, ::Type{T}, ::Bool) where {T<:String} =
 
 # Stored as variable-length strings
 function h5type(::JldFile, ::Type{T}, ::Bool) where T<:String
-    type_id = HDF5.h5t_copy(HDF5.hdf5_type_id(T))
+    type_id = HDF5.API.h5t_copy(HDF5.hdf5_type_id(T))
     HDF5.h5t_set_size(type_id, HDF5.H5T_VARIABLE)
     HDF5.h5t_set_cset(type_id, HDF5.cset(T))
     JldDatatype(HDF5.Datatype(type_id, false), 0)
@@ -180,7 +180,7 @@ h5fieldtype(parent::JldFile, ::Type{Symbol}, commit::Bool) =
 # Stored as a compound type that contains a variable length string
 function h5type(parent::JldFile, ::Type{Symbol}, commit::Bool)
     haskey(parent.jlh5type, Symbol) && return parent.jlh5type[Symbol]
-    id = HDF5.h5t_create(HDF5.H5T_COMPOUND, 8)
+    id = HDF5.h5t_create(HDF5.API.H5T_COMPOUND, 8)
     HDF5.h5t_insert(id, "symbol_", 0, h5fieldtype(parent, String, commit))
     dtype = HDF5.Datatype(id, parent.plain)
     commit ? commit_datatype(parent, dtype, Symbol) : JldDatatype(dtype, -1)
@@ -203,7 +203,7 @@ h5fieldtype(parent::JldFile, T::Union{Type{BigInt}, Type{BigFloat}}, commit::Boo
 # Stored as a compound type that contains a variable length string
 function h5type(parent::JldFile, T::Union{Type{BigInt}, Type{BigFloat}}, commit::Bool)
     haskey(parent.jlh5type, T) && return parent.jlh5type[T]
-    id = HDF5.h5t_create(HDF5.H5T_COMPOUND, 8)
+    id = HDF5.h5t_create(HDF5.API.H5T_COMPOUND, 8)
     HDF5.h5t_insert(id, "data_", 0, h5fieldtype(parent, String, commit))
     dtype = HDF5.Datatype(id, parent.plain)
     commit ? commit_datatype(parent, dtype, T) : JldDatatype(dtype, -1)
@@ -233,7 +233,7 @@ h5fieldtype(parent::JldFile, ::Type{T}, commit::Bool) where {T<:Type} =
 # Stored as a compound type that contains a variable length string
 function h5type(parent::JldFile, ::Type{T}, commit::Bool) where T<:Type
     haskey(parent.jlh5type, Type) && return parent.jlh5type[Type]
-    id = HDF5.h5t_create(HDF5.H5T_COMPOUND, 8)
+    id = HDF5.h5t_create(HDF5.API.API.H5T_COMPOUND, 8)
     HDF5.h5t_insert(id, "typename_", 0, h5fieldtype(parent, String, commit))
     dtype = HDF5.Datatype(id, parent.plain)
     out = commit ? commit_datatype(parent, dtype, Type) : JldDatatype(dtype, -1)
@@ -280,9 +280,9 @@ function h5type(parent::JldFile, T::TupleType, commit::Bool)
 
     typeinfo = JldTypeInfo(parent, T, commit)
     if isopaque(T)
-        id = HDF5.h5t_create(HDF5.H5T_OPAQUE, opaquesize(T))
+        id = HDF5.h5t_create(HDF5.API.H5T_OPAQUE, opaquesize(T))
     else
-        id = HDF5.h5t_create(HDF5.H5T_COMPOUND, typeinfo.size)
+        id = HDF5.h5t_create(HDF5.API.H5T_COMPOUND, typeinfo.size)
     end
     for i = 1:length(typeinfo.offsets)
         fielddtype = typeinfo.dtypes[i]
@@ -333,11 +333,11 @@ function h5type_default(parent::JldFile, @nospecialize(T), commit::Bool)
 
     if isopaque(T)
         # Empty type or non-basic bitstype
-        id = HDF5.h5t_create(HDF5.H5T_OPAQUE, opaquesize(T))
+        id = HDF5.h5t_create(HDF5.API.H5T_OPAQUE, opaquesize(T))
     else
         # Compound type
         typeinfo = JldTypeInfo(parent, T.types, commit)
-        id = HDF5.h5t_create(HDF5.H5T_COMPOUND, typeinfo.size)
+        id = HDF5.h5t_create(HDF5.API.H5T_COMPOUND, typeinfo.size)
         for i = 1:length(typeinfo.offsets)
             fielddtype = typeinfo.dtypes[i]
             HDF5.h5t_insert(id, mangle_name(fielddtype, fieldnames(T)[i]), typeinfo.offsets[i], fielddtype)
@@ -365,7 +365,7 @@ function _gen_jlconvert_type(typeinfo::JldTypeInfo, @nospecialize(T))
     for i = 1:length(typeinfo.dtypes)
         h5offset = typeinfo.offsets[i]
 
-        if HDF5.h5t_get_class(typeinfo.dtypes[i]) == HDF5.H5T_REFERENCE
+        if HDF5.API.h5t_get_class(typeinfo.dtypes[i]) == HDF5.API.H5T_REFERENCE
             push!(args, quote
                 ref = unsafe_load(convert(Ptr{HDF5.Reference}, ptr)+$h5offset)
                 if ref != HDF5.Reference()
@@ -415,7 +415,7 @@ function _gen_jlconvert_immutable(typeinfo::JldTypeInfo, @nospecialize(T))
                         ninit += 1
                     end
                 end)
-            elseif HDF5.h5t_get_class(typeinfo.dtypes[i]) == HDF5.H5T_REFERENCE
+            elseif HDF5.API.h5t_get_class(typeinfo.dtypes[i]) == HDF5.API.H5T_REFERENCE
                 push!(args, quote
                     ref = unsafe_load(convert(Ptr{HDF5.Reference}, ptr)+$h5offset)
                     if ref != HDF5.Reference()
@@ -456,7 +456,7 @@ function _gen_jlconvert_immutable!(typeinfo::JldTypeInfo, @nospecialize(T))
                         unsafe_store!(convert(Ptr{$(T.types[i])}, out)+$jloffset, read_ref(file, ref))
                     end
                 end)
-            elseif HDF5.h5t_get_class(typeinfo.dtypes[i]) == HDF5.H5T_REFERENCE
+            elseif HDF5.API.h5t_get_class(typeinfo.dtypes[i]) == HDF5.API.H5T_REFERENCE
                 error("reference encountered in pointerfree immutable; this is a bug")
             else
                 push!(args, :(jlconvert!(out+$jloffset, $(T.types[i]), file, ptr+$h5offset)))
@@ -482,7 +482,7 @@ function _gen_jlconvert_tuple(typeinfo::JldTypeInfo, @nospecialize(T))
         h5offset = typeinfo.offsets[i]
         field = Symbol(string("field", i))
 
-        if HDF5.h5t_get_class(typeinfo.dtypes[i]) == HDF5.H5T_REFERENCE
+        if HDF5.API.h5t_get_class(typeinfo.dtypes[i]) == HDF5.API.H5T_REFERENCE
             push!(args, :($field = read_ref(file, unsafe_load(convert(Ptr{HDF5.Reference}, ptr)+$h5offset))))
         else
             push!(args, :($field = jlconvert($(types[i]), file, ptr+$h5offset)))
@@ -594,9 +594,9 @@ function gen_h5convert(parent::JldFile, @nospecialize(T))
         types = (T::DataType).types
     end
 
-    n = HDF5.h5t_get_nmembers(dtype.id)
+    n = HDF5.API.h5t_get_nmembers(dtype.id)
     for i = 1:n
-        if HDF5.h5t_get_member_class(dtype.id, i-1) != HDF5.H5T_REFERENCE
+        if HDF5.API.h5t_get_member_class(dtype.id, i-1) != HDF5.API.H5T_REFERENCE
             gen_h5convert(parent, types[i])
         end
     end
@@ -626,10 +626,10 @@ function _gen_h5convert!(@nospecialize(T))
     getindex_fn = istuple ? (:getindex) : (:getfield)
     ex = Expr(:block)
     args = ex.args
-    n = HDF5.h5t_get_nmembers(dtype.id)
+    n = HDF5.API.h5t_get_nmembers(dtype.id)
     for i = 1:n
         offset = HDF5.h5t_get_member_offset(dtype.id, i-1)
-        if HDF5.h5t_get_member_class(dtype.id, i-1) == HDF5.H5T_REFERENCE
+        if HDF5.API.h5t_get_member_class(dtype.id, i-1) == HDF5.API.H5T_REFERENCE
             if istuple
                 push!(args, :(unsafe_store!(convert(Ptr{HDF5.Reference}, out)+$offset,
                                             write_ref(file, $getindex_fn(x, $i), wsession))))
@@ -660,33 +660,33 @@ end
 # Type mapping function. Given an HDF5.Datatype, find (or construct) the
 # corresponding Julia type.
 function jldatatype(parent::JldFile, dtype::HDF5.Datatype)
-    class_id = HDF5.h5t_get_class(dtype.id)
-    if class_id == HDF5.H5T_STRING
-        cset = HDF5.h5t_get_cset(dtype.id)
-        if cset == HDF5.H5T_CSET_ASCII
+    class_id = HDF5.API.h5t_get_class(dtype.id)
+    if class_id == HDF5.API.H5T_STRING
+        cset = HDF5.API.h5t_get_cset(dtype.id)
+        if cset == HDF5.API.H5T_CSET_ASCII
             return String
-        elseif cset == HDF5.H5T_CSET_UTF8
+        elseif cset == HDF5.API.H5T_CSET_UTF8
             return String
         else
             error("character set ", cset, " not recognized")
         end
-    elseif class_id == HDF5.H5T_INTEGER || class_id == HDF5.H5T_FLOAT || class_id == HDF5.H5T_BITFIELD
+    elseif class_id == HDF5.API.H5T_INTEGER || class_id == HDF5.API.H5T_FLOAT || class_id == HDF5.API.H5T_BITFIELD
         # This can be a performance hotspot
-        HDF5.h5t_equal(dtype.id, HDF5.H5T_NATIVE_DOUBLE) > 0 && return Float64
-        HDF5.h5t_equal(dtype.id, HDF5.H5T_NATIVE_INT64) > 0 && return Int64
-        HDF5.h5t_equal(dtype.id, HDF5.H5T_NATIVE_FLOAT) > 0 && return Float32
-        HDF5.h5t_equal(dtype.id, HDF5.H5T_NATIVE_INT32) > 0 && return Int32
-        HDF5.h5t_equal(dtype.id, HDF5.H5T_NATIVE_UINT8) > 0 && return UInt8
-        HDF5.h5t_equal(dtype.id, HDF5.H5T_NATIVE_UINT64) > 0 && return UInt64
-        HDF5.h5t_equal(dtype.id, HDF5.H5T_NATIVE_UINT32) > 0 && return UInt32
-        HDF5.h5t_equal(dtype.id, HDF5.H5T_NATIVE_INT8) > 0 && return Int8
-        HDF5.h5t_equal(dtype.id, HDF5.H5T_NATIVE_INT16) > 0 && return Int16
-        HDF5.h5t_equal(dtype.id, HDF5.H5T_NATIVE_UINT16) > 0 && return UInt16
-        HDF5.h5t_equal(dtype.id, HDF5.H5T_NATIVE_B8) > 0 && return Bool
+        HDF5.API.h5t_equal(dtype.id, HDF5.API.H5T_NATIVE_DOUBLE) > 0 && return Float64
+        HDF5.API.h5t_equal(dtype.id, HDF5.API.H5T_NATIVE_INT64) > 0 && return Int64
+        HDF5.API.h5t_equal(dtype.id, HDF5.API.H5T_NATIVE_FLOAT) > 0 && return Float32
+        HDF5.API.h5t_equal(dtype.id, HDF5.API.H5T_NATIVE_INT32) > 0 && return Int32
+        HDF5.API.h5t_equal(dtype.id, HDF5.API.H5T_NATIVE_UINT8) > 0 && return UInt8
+        HDF5.API.h5t_equal(dtype.id, HDF5.API.H5T_NATIVE_UINT64) > 0 && return UInt64
+        HDF5.API.h5t_equal(dtype.id, HDF5.API.H5T_NATIVE_UINT32) > 0 && return UInt32
+        HDF5.API.h5t_equal(dtype.id, HDF5.API.H5T_NATIVE_INT8) > 0 && return Int8
+        HDF5.API.h5t_equal(dtype.id, HDF5.API.H5T_NATIVE_INT16) > 0 && return Int16
+        HDF5.API.h5t_equal(dtype.id, HDF5.API.H5T_NATIVE_UINT16) > 0 && return UInt16
+        HDF5.API.h5t_equal(dtype.id, HDF5.API.H5T_NATIVE_B8) > 0 && return Bool
         error("unrecognized integer or float type")
-    elseif class_id == HDF5.H5T_BITFIELD
+    elseif class_id == HDF5.API.H5T_BITFIELD
         Bool
-    elseif class_id == HDF5.H5T_COMPOUND || class_id == HDF5.H5T_OPAQUE
+    elseif class_id == HDF5.API.H5T_COMPOUND || class_id == HDF5.API.H5T_OPAQUE
         addr = object_info(dtype).addr
         haskey(parent.h5jltype, addr) && return parent.h5jltype[addr]
 
@@ -703,9 +703,9 @@ function jldatatype(parent::JldFile, dtype::HDF5.Datatype)
         if !(T in BUILTIN_TYPES)
             # Call jldatatype on dependent types to validate them and
             # define jlconvert
-            if class_id == HDF5.H5T_COMPOUND
-                for i = 0:HDF5.h5t_get_nmembers(dtype.id)-1
-                    member_name = HDF5.h5t_get_member_name(dtype.id, i)
+            if class_id == HDF5.API.H5T_COMPOUND
+                for i = 0:HDF5.API.h5t_get_nmembers(dtype.id)-1
+                    member_name = HDF5.API.h5t_get_member_name(dtype.id, i)
                     idx = first(something(findlast("_", member_name), 0:-1))
                     if idx != sizeof(member_name)
                         member_dtype = open_datatype(parent.plain, string(pathtypes, '/', lpad(member_name[idx+1:end], 8, '0')))
@@ -724,14 +724,14 @@ function jldatatype(parent::JldFile, dtype::HDF5.Datatype)
                 # If the types compare equal, continue
             else
                 # Otherwise the types may be compatible yet still naively compare as
-                # unequal. This seems to be related to H5T_REFERENCE members in the compound
+                # unequal. This seems to be related to API.H5T_REFERENCE members in the compound
                 # datatype (starting with libhdf5 v1.12) comparing unequal if one half has
                 # been committed while the other is still transient.
                 #
                 # Both dtype and newtype may be committed (former) or contain committed member
                 # types loaded from the cache (latter), so copy both for comparison.
-                dtype′  = HDF5.Datatype(HDF5.h5t_copy(dtype.id))
-                newtype = HDF5.Datatype(HDF5.h5t_copy(newtype.id))
+                dtype′  = HDF5.Datatype(HDF5.API.h5t_copy(dtype.id))
+                newtype = HDF5.Datatype(HDF5.API.h5t_copy(newtype.id))
                 dtype′ == newtype || throw(TypeMismatchException(typename))
             end
         end
@@ -750,21 +750,21 @@ end
 # when the type is no longer available.
 function reconstruct_type(parent::JldFile, dtype::HDF5.Datatype, savedname::AbstractString)
     name = gensym(savedname)
-    class_id = HDF5.h5t_get_class(dtype.id)
-    if class_id == HDF5.H5T_OPAQUE
+    class_id = HDF5.API.h5t_get_class(dtype.id)
+    if class_id == HDF5.API.H5T_OPAQUE
         if haskey(dtype, "empty")
             @eval (struct $name; end; $name)
         else
-            sz = Int(HDF5.h5t_get_size(dtype.id))*8
+            sz = Int(HDF5.API.h5t_get_size(dtype.id))*8
             @eval (primitive type $name $sz end; $name)
         end
     else
         # Figure out field names and types
-        nfields = HDF5.h5t_get_nmembers(dtype.id)
+        nfields = HDF5.API.h5t_get_nmembers(dtype.id)
         fieldnames = Vector{Symbol}(undef, nfields)
         fieldtypes = Vector{Type}(undef, nfields)
         for i = 1:nfields
-            membername = HDF5.h5t_get_member_name(dtype.id, i-1)
+            membername = HDF5.API.h5t_get_member_name(dtype.id, i-1)
             idx = first(something(findlast("_", membername), 0:-1))
             fieldname = fieldnames[i] = Symbol(membername[1:prevind(membername,idx)])
 
@@ -774,13 +774,13 @@ function reconstruct_type(parent::JldFile, dtype::HDF5.Datatype, savedname::Abst
                 memberdtype = open_datatype(parent.plain, string(pathtypes, '/', lpad(membername[idx+1:end], 8, '0')))
                 fieldtypes[i] = jldatatype(parent, memberdtype)
             else
-                memberclass = HDF5.h5t_get_member_class(dtype.id, i-1)
-                if memberclass == HDF5.H5T_REFERENCE
+                memberclass = HDF5.API.h5t_get_member_class(dtype.id, i-1)
+                if memberclass == HDF5.API.H5T_REFERENCE
                     # Field is a reference, so use Any
                     fieldtypes[i] = Any
                 else
                     # Type is built-in
-                    memberdtype = HDF5.Datatype(HDF5.h5t_get_member_type(dtype.id, i-1), parent.plain)
+                    memberdtype = HDF5.Datatype(HDF5.API.h5t_get_member_type(dtype.id, i-1), parent.plain)
                     fieldtypes[i] = jldatatype(parent, memberdtype)
                 end
             end
