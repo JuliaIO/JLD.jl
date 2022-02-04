@@ -31,7 +31,6 @@ Within Julia, use the package manager:
 Pkg.add("JLD")
 ```
 
-Currently this also requires the [HDF5.jl](https://github.com/JuliaIO/HDF5.jl) package.
 
 ## Quickstart
 
