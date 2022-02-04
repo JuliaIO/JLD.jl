@@ -174,7 +174,7 @@ function jldopen(f::Function, args...)
     end
 end
 
-function jldobject(obj_id::HDF5.hid_t, parent)
+function jldobject(obj_id::HDF5.API.hid_t, parent)
     obj_type = HDF5.API.h5i_get_type(obj_id)
     obj_type == HDF5.API.H5I_GROUP ? JldGroup(HDF5.Group(obj_id, file(parent.plain)), file(parent)) :
     obj_type == HDF5.API.H5I_DATATYPE ? HDF5.Datatype(obj_id) :

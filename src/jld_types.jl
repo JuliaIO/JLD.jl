@@ -75,7 +75,7 @@ commit_datatype(parent::Nothing, dtype::HDF5.Datatype, @nospecialize(T)) =
 # later.
 mangle_name(jtype::JldDatatype, jlname) =
     jtype.index <= 0 ? string(jlname, "_") : string(jlname, "_", jtype.index)
-Base.convert(::Type{HDF5.hid_t}, x::JldDatatype) = x.dtype.id
+Base.convert(::Type{HDF5.API.hid_t}, x::JldDatatype) = x.dtype.id
 
 ## Serialization of datatypes to JLD
 ##
@@ -156,8 +156,8 @@ h5fieldtype(parent::JldFile, ::Type{T}, ::Bool) where {T<:String} =
 # Stored as variable-length strings
 function h5type(::JldFile, ::Type{T}, ::Bool) where T<:String
     type_id = HDF5.API.h5t_copy(HDF5.hdf5_type_id(T))
-    HDF5.h5t_set_size(type_id, HDF5.H5T_VARIABLE)
-    HDF5.h5t_set_cset(type_id, HDF5.cset(T))
+    HDF5.API.h5t_set_size(type_id, HDF5.API.H5T_VARIABLE)
+    HDF5.API.h5t_set_cset(type_id, HDF5.cset(T))
     JldDatatype(HDF5.Datatype(type_id, false), 0)
 end
 
@@ -180,8 +180,8 @@ h5fieldtype(parent::JldFile, ::Type{Symbol}, commit::Bool) =
 # Stored as a compound type that contains a variable length string
 function h5type(parent::JldFile, ::Type{Symbol}, commit::Bool)
     haskey(parent.jlh5type, Symbol) && return parent.jlh5type[Symbol]
-    id = HDF5.h5t_create(HDF5.API.H5T_COMPOUND, 8)
-    HDF5.h5t_insert(id, "symbol_", 0, h5fieldtype(parent, String, commit))
+    id = HDF5.API.h5t_create(HDF5.API.H5T_COMPOUND, 8)
+    HDF5.API.h5t_insert(id, "symbol_", 0, h5fieldtype(parent, String, commit))
     dtype = HDF5.Datatype(id, parent.plain)
     commit ? commit_datatype(parent, dtype, Symbol) : JldDatatype(dtype, -1)
 end
@@ -203,8 +203,8 @@ h5fieldtype(parent::JldFile, T::Union{Type{BigInt}, Type{BigFloat}}, commit::Boo
 # Stored as a compound type that contains a variable length string
 function h5type(parent::JldFile, T::Union{Type{BigInt}, Type{BigFloat}}, commit::Bool)
     haskey(parent.jlh5type, T) && return parent.jlh5type[T]
-    id = HDF5.h5t_create(HDF5.API.H5T_COMPOUND, 8)
-    HDF5.h5t_insert(id, "data_", 0, h5fieldtype(parent, String, commit))
+    id = HDF5.API.h5t_create(HDF5.API.H5T_COMPOUND, 8)
+    HDF5.API.h5t_insert(id, "data_", 0, h5fieldtype(parent, String, commit))
     dtype = HDF5.Datatype(id, parent.plain)
     commit ? commit_datatype(parent, dtype, T) : JldDatatype(dtype, -1)
 end
@@ -233,8 +233,8 @@ h5fieldtype(parent::JldFile, ::Type{T}, commit::Bool) where {T<:Type} =
 # Stored as a compound type that contains a variable length string
 function h5type(parent::JldFile, ::Type{T}, commit::Bool) where T<:Type
     haskey(parent.jlh5type, Type) && return parent.jlh5type[Type]
-    id = HDF5.h5t_create(HDF5.API.API.H5T_COMPOUND, 8)
-    HDF5.h5t_insert(id, "typename_", 0, h5fieldtype(parent, String, commit))
+    id = HDF5.API.h5t_create(HDF5.API.API.H5T_COMPOUND, 8)
+    HDF5.API.h5t_insert(id, "typename_", 0, h5fieldtype(parent, String, commit))
     dtype = HDF5.Datatype(id, parent.plain)
     out = commit ? commit_datatype(parent, dtype, Type) : JldDatatype(dtype, -1)
 end
@@ -280,13 +280,13 @@ function h5type(parent::JldFile, T::TupleType, commit::Bool)
 
     typeinfo = JldTypeInfo(parent, T, commit)
     if isopaque(T)
-        id = HDF5.h5t_create(HDF5.API.H5T_OPAQUE, opaquesize(T))
+        id = HDF5.API.h5t_create(HDF5.API.H5T_OPAQUE, opaquesize(T))
     else
-        id = HDF5.h5t_create(HDF5.API.H5T_COMPOUND, typeinfo.size)
+        id = HDF5.API.h5t_create(HDF5.API.H5T_COMPOUND, typeinfo.size)
     end
     for i = 1:length(typeinfo.offsets)
         fielddtype = typeinfo.dtypes[i]
-        HDF5.h5t_insert(id, mangle_name(fielddtype, i), typeinfo.offsets[i], fielddtype)
+        HDF5.API.h5t_insert(id, mangle_name(fielddtype, i), typeinfo.offsets[i], fielddtype)
     end
 
     dtype = HDF5.Datatype(id, parent.plain)
@@ -333,14 +333,14 @@ function h5type_default(parent::JldFile, @nospecialize(T), commit::Bool)
 
     if isopaque(T)
         # Empty type or non-basic bitstype
-        id = HDF5.h5t_create(HDF5.API.H5T_OPAQUE, opaquesize(T))
+        id = HDF5.API.h5t_create(HDF5.API.H5T_OPAQUE, opaquesize(T))
     else
         # Compound type
         typeinfo = JldTypeInfo(parent, T.types, commit)
-        id = HDF5.h5t_create(HDF5.API.H5T_COMPOUND, typeinfo.size)
+        id = HDF5.API.h5t_create(HDF5.API.H5T_COMPOUND, typeinfo.size)
         for i = 1:length(typeinfo.offsets)
             fielddtype = typeinfo.dtypes[i]
-            HDF5.h5t_insert(id, mangle_name(fielddtype, fieldnames(T)[i]), typeinfo.offsets[i], fielddtype)
+            HDF5.API.h5t_insert(id, mangle_name(fielddtype, fieldnames(T)[i]), typeinfo.offsets[i], fielddtype)
         end
     end
 
@@ -628,7 +628,7 @@ function _gen_h5convert!(@nospecialize(T))
     args = ex.args
     n = HDF5.API.h5t_get_nmembers(dtype.id)
     for i = 1:n
-        offset = HDF5.h5t_get_member_offset(dtype.id, i-1)
+        offset = HDF5.API.h5t_get_member_offset(dtype.id, i-1)
         if HDF5.API.h5t_get_member_class(dtype.id, i-1) == HDF5.API.H5T_REFERENCE
             if istuple
                 push!(args, :(unsafe_store!(convert(Ptr{HDF5.Reference}, out)+$offset,
