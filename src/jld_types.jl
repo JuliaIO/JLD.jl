@@ -233,7 +233,7 @@ h5fieldtype(parent::JldFile, ::Type{T}, commit::Bool) where {T<:Type} =
 # Stored as a compound type that contains a variable length string
 function h5type(parent::JldFile, ::Type{T}, commit::Bool) where T<:Type
     haskey(parent.jlh5type, Type) && return parent.jlh5type[Type]
-    id = HDF5.API.h5t_create(HDF5.API.API.H5T_COMPOUND, 8)
+    id = HDF5.API.h5t_create(HDF5.API.H5T_COMPOUND, 8)
     HDF5.API.h5t_insert(id, "typename_", 0, h5fieldtype(parent, String, commit))
     dtype = HDF5.Datatype(id, parent.plain)
     out = commit ? commit_datatype(parent, dtype, Type) : JldDatatype(dtype, -1)

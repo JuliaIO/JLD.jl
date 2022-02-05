@@ -168,14 +168,14 @@ function jldopen(filename::AbstractString, rd::Bool, wr::Bool, cr::Bool, tr::Boo
         error("File ", filename, " cannot be found")
     end
     version = version_current
-    fapl = HDF5.FileAccessProperties() # fapl
+    fapl = HDF5.FileAccessProperties()
     # HDF5.h5p_set_libver_bounds(fapl, HDF5.H5F_LIBVER_18, HDF5.H5F_LIBVER_18)
     try
-        fapl.fclose_degree = HDF5.API.H5F_CLOSE_STRONG
+        fapl.fclose_degree = :strong
         if cr && (tr || !isfile(filename))
             # We're truncating, so we don't have to check the format of an existing file
             # Set the user block to 512 bytes, to save room for the header
-            fcpl = HDF5.FileCreateProperties() # fcpl
+            fcpl = HDF5.FileCreateProperties()
             local f
             try
                 fcpl.userblock = 512
