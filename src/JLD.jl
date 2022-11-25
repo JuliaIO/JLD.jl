@@ -1201,6 +1201,40 @@ macro save(filename, vars...)
     end
 end
 
+macro save(opt::Expr, filename, vars...)
+    compress = opt.head === :(=) && first(opt.args) === :compress && last(opt.args) == true
+
+    if isempty(vars)
+        # Save all variables in the current module
+        writeexprs = Vector{Expr}(undef, 0)
+        m = __module__
+        for vname in names(m)
+            s = string(vname)
+            if !occursin(r"^_+[0-9]*$", s) && s != "ans" # skip IJulia history vars
+                v = Core.eval(m, vname)
+                if !isa(v, Module)
+                    push!(writeexprs, :(write(f, $s, $(esc(vname)), wsession)))
+                end
+            end
+        end
+    else
+        writeexprs = Vector{Expr}(undef, length(vars))
+        for i = 1:length(vars)
+            writeexprs[i] = :(write(f, $(string(vars[i])), $(esc(vars[i])), wsession))
+        end
+    end
+
+    quote
+        local f = jldopen($(esc(filename)), "w", compress=$compress)
+        wsession = JldWriteSession()
+        try
+            $(Expr(:block, writeexprs...))
+        finally
+            close(f)
+        end
+    end
+end
+
 macro load(filename, vars...)
     if isempty(vars)
         if isa(filename, Expr)
