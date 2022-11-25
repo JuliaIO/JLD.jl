@@ -1202,7 +1202,7 @@ macro save(filename, vars...)
 end
 
 macro save(opt::Expr, filename, vars...)
-    compress = opt.head === :(=) && first(opt.args) === :compress && last(opt.args) == true
+    compress = (opt.head === :(=) && first(opt.args) === :compress) ? last(opt.args) : false
 
     if isempty(vars)
         # Save all variables in the current module
@@ -1225,7 +1225,7 @@ macro save(opt::Expr, filename, vars...)
     end
 
     quote
-        local f = jldopen($(esc(filename)), "w", compress=$compress)
+        local f = jldopen($(esc(filename)), "w", compress=$(esc(compress)))
         wsession = JldWriteSession()
         try
             $(Expr(:block, writeexprs...))
