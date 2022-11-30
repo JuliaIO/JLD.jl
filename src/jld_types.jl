@@ -254,7 +254,7 @@ h5fieldtype(parent::JldFile, ::Type{Union{}}, ::Bool) = JLD_REF_TYPE
 
 ## Arrays
 
-# These show up as having T.size == 0, hence the need for
+# These show up as having sizeof(T) == 0, hence the need for
 # specialization.
 h5fieldtype(parent::JldFile, ::Type{Array{T,N}}, ::Bool) where {T,N} = JLD_REF_TYPE
 
@@ -308,10 +308,10 @@ end
 # this is a reference. If the type is immutable, this is a type itself.
 if INLINE_POINTER_IMMUTABLE
     h5fieldtype(parent::JldFile, @nospecialize(T), commit::Bool) =
-        isconcretetype(T) && (!ismutabletype(T) || T.size == 0) ? h5type(parent, T, commit) : JLD_REF_TYPE
+        isconcretetype(T) && (!ismutabletype(T) || sizeof(T) == 0) ? h5type(parent, T, commit) : JLD_REF_TYPE
 else
     h5fieldtype(parent::JldFile, @nospecialize(T), commit::Bool) =
-        isconcretetype(T) && (!ismutabletype(T) || T.size == 0) && datatype_pointerfree(T) ? h5type(parent, T, commit) : JLD_REF_TYPE
+        isconcretetype(T) && (!ismutabletype(T) || sizeof(T) == 0) && datatype_pointerfree(T) ? h5type(parent, T, commit) : JLD_REF_TYPE
 end
 
 function h5type(parent::JldFile, T::Type{Bool}, commit::Bool)
@@ -347,7 +347,7 @@ function h5type_default(parent::JldFile, @nospecialize(T), commit::Bool)
     dtype = HDF5.Datatype(id, parent.plain)
     if commit
         jlddtype = commit_datatype(parent, dtype, T)
-        if T.size == 0
+        if sizeof(T) == 0
             # to allow recovery of empty types, which HDF5 does not allow
             write_attribute(dtype, "empty", UInt8(1))
         end
@@ -506,12 +506,12 @@ function gen_jlconvert(@nospecialize(T))
     if isa(T, TupleType)
         return _gen_jlconvert_tuple(typeinfo, T)
     elseif isempty(fieldnames(T))
-        if T.size == 0 && !ismutabletype(T)
+        if sizeof(T) == 0 && !ismutabletype(T)
             return T.instance
         else
            return :(_jlconvert_bits(T, ptr))
         end
-    elseif T.size == 0
+    elseif sizeof(T) == 0
         return :(ccall(:jl_new_struct_uninit, Ref{T}, (Any,), T))
     elseif ismutabletype(T)
         return _gen_jlconvert_type(typeinfo, T)
@@ -525,7 +525,7 @@ function gen_jlconvert!(@nospecialize(T))
     if isa(T, TupleType)
         error("unimplemented")
     elseif isempty(fieldnames(T))
-        if T.size == 0
+        if sizeof(T) == 0
             if !ismutabletype(T)
                 return nothing
             else
@@ -534,7 +534,7 @@ function gen_jlconvert!(@nospecialize(T))
         else
            return :(_jlconvert_bits!(out, T, ptr); nothing)
         end
-    elseif T.size == 0
+    elseif sizeof(T) == 0
         return nothing
     elseif ismutabletype(T)
         return _gen_jlconvert_type!(typeinfo, T)
@@ -560,7 +560,7 @@ isopaque(t::DataType) = isa(t, TupleType) ? t == EMPTY_TUPLE_TYPE : isempty(fiel
 
 # The size of this datatype in the HDF5 file (if opaque)
 opaquesize(t::TupleType) = 1
-opaquesize(t::DataType) = max(1, t.size)
+opaquesize(t::DataType) = max(1, sizeof(t))
 
 # Whether a type that is stored inline in HDF5 should be stored as a
 # reference in Julia. This will only be called such that it returns
@@ -610,7 +610,7 @@ function _gen_h5convert!(@nospecialize(T))
     istuple = isa(T, TupleType)
 
     if isopaque(T)
-        if T.size == 0
+        if sizeof(T) == 0
             return nothing
         else
             return :(unsafe_store!(convert(Ptr{T}, out), x))

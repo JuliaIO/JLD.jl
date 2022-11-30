@@ -449,7 +449,7 @@ end
 # CompositeKind
 read(obj::JldDataset, T::UnionAll) = read(obj, Base.unwrap_unionall(T))
 function read(obj::JldDataset, T::DataType)
-    if isempty(fieldnames(T)) && T.size > 0
+    if isempty(fieldnames(T)) && sizeof(T) > 0
         return read_bitstype(obj, T)
     end
     local x
@@ -733,7 +733,7 @@ write(parent::Union{JldFile, JldGroup}, name::String, s; rootmodule="") = write_
 function write_composite(parent::Union{JldFile, JldGroup}, name::String, s; rootmodule="")
     T = typeof(s)
     if isempty(fieldnames(T))
-        if T.size > 0
+        if sizeof(T) > 0
             return write_bitstype(parent, name, s)
         end
         isdefined(T, :instance) || error("This is the write function for CompositeKind, but the input is of type ", T)
@@ -791,16 +791,16 @@ end
 
 function write_bitstype(parent::Union{JldFile, JldGroup}, name::String, s)
     T = typeof(s)
-    if T.size == 1
+    if sizeof(T) == 1
         ub = reinterpret(UInt8, s)
-    elseif T.size == 2
+    elseif sizeof(T) == 2
         ub = reinterpret(UInt16, s)
-    elseif T.size == 4
+    elseif sizeof(T) == 4
         ub = reinterpret(UInt32, s)
-    elseif T.size == 8
+    elseif sizeof(T) == 8
         ub = reinterpret(UInt64, s)
     else
-        error("Unsupported bitstype $T of size $(T.size)")
+        error("Unsupported bitstype $T of size $(sizeof(T))")
     end
     write(parent, name, [ub], "$(full_typename(T))")
 end
