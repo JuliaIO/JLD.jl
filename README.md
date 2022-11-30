@@ -47,6 +47,8 @@ advanced features, then a simple syntax is:
 t = 15
 z = [1,3]
 save("/tmp/myfile.jld", "t", t, "arr", z)
+# or equivalently:
+@save "/tmp/myfile.jld" t z
 ```
 Here we're explicitly saving `t` and `z` as `"t"` and `"arr"` within
 `myfile.jld`. You can alternatively pass `save` a dictionary; the keys must be
@@ -72,10 +74,16 @@ This problem is not encountered while loading a JLD file because FileIO can use
 magic bytes at the beginning of the file to infer its data format.
 
 There are also convenience macros `@save` and `@load` that work on the
-variables themselves. `@save "/tmp/myfile.jld" t z` will create a file with
-just `t` and `z`; if you don't mention any variables, then it saves all the
-variables in the current module. Conversely, `@load` will pop the saved
-variables directly into the global workspace of the current module.
+variables themselves.
+```julia
+@save "/tmp/myfile.jld" t z
+# or
+@save compress=true "/tmp/myfile.jld" t z
+```
+will create a file with just `t` and `z`, with or without compression.
+If you don't mention any variables, then `@save` saves all the variables in the
+current module. Conversely, `@load` will pop the saved variables directly into
+the global workspace of the current module.
 However, keep in mind that these macros have significant limitations: for example,
 you can't use `@load` inside a function, there are constraints on using string
 interpolation inside filenames, etc. These limitations stem

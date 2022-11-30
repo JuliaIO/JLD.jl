@@ -674,6 +674,22 @@ for compatible in (false, true), compress in (false, true)
         @test typeof(a[1]) == ObjRefType
         @test a[1] === a[2] === b[2] === a[1]
     end
+    @save compress=compress fn a b
+    jldopen(fn, "r") do fid
+        a = read(fid, "a")
+        b = read(fid, "b")
+        @test a[1] === a[2] === b[2] === a[1]
+
+        # Let gc get rid of a and b
+        a = nothing
+        b = nothing
+        GC.gc()
+
+        a = read(fid, "a")
+        b = read(fid, "b")
+        @test typeof(a[1]) == ObjRefType
+        @test a[1] === a[2] === b[2] === a[1]
+    end
 
     # do syntax
     jldopen(fn, "w", compatible=compatible, compress=compress) do fid
@@ -947,6 +963,10 @@ f2()
 li, lidict = Profile.retrieve()
 f = tempname()*".jld"
 @save f li lidict
+@test isa(JLD.load(f)["lidict"], Dict{UInt64,Array{Base.StackFrame,1}})
+rm(f)
+f = tempname()*".jld"
+@save compress=true f li lidict
 @test isa(JLD.load(f)["lidict"], Dict{UInt64,Array{Base.StackFrame,1}})
 rm(f)
 

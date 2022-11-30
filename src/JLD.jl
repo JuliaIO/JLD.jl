@@ -1169,6 +1169,15 @@ function save_write(f, s, vname, wsession::JldWriteSession)
     end
 end
 
+"""
+```julia
+@save "filename.jld" var1 [var2 var3 ...]
+@save compress=true "filename.jld" var1 [var2 var3 ...]
+```
+Save the variables `var1` (and optionally `var2`, `var3`, etc.) to a JLD file "filename.jld".
+Optionally you may specify `compress=true` or `compress=false` as the first argument,
+to specify whether the resulting `.jld` file should be compressed (default=`false`).
+"""
 macro save(filename, vars...)
     if isempty(vars)
         # Save all variables in the current module
@@ -1201,6 +1210,53 @@ macro save(filename, vars...)
     end
 end
 
+macro save(opt::Expr, filename, vars...)
+    compress = (opt.head === :(=) && first(opt.args) === :compress) ? last(opt.args) : false
+
+    if isempty(vars)
+        # Save all variables in the current module
+        writeexprs = Vector{Expr}(undef, 0)
+        m = __module__
+        for vname in names(m)
+            s = string(vname)
+            if !occursin(r"^_+[0-9]*$", s) && s != "ans" # skip IJulia history vars
+                v = Core.eval(m, vname)
+                if !isa(v, Module)
+                    push!(writeexprs, :(write(f, $s, $(esc(vname)), wsession)))
+                end
+            end
+        end
+    else
+        writeexprs = Vector{Expr}(undef, length(vars))
+        for i = 1:length(vars)
+            writeexprs[i] = :(write(f, $(string(vars[i])), $(esc(vars[i])), wsession))
+        end
+    end
+
+    quote
+        local f = jldopen($(esc(filename)), "w", compress=$(esc(compress)))
+        wsession = JldWriteSession()
+        try
+            $(Expr(:block, writeexprs...))
+        finally
+            close(f)
+        end
+    end
+end
+
+"""
+```julia
+@load "filename.jld"
+@load "filename.jld" var1 [var2 var3 ...]
+```
+Load the variables `var1`, `var2`, et cetera, contained in the file
+`filename.jld` into the current global scope.
+
+If no variable names are specified, all variables from the file will be loaded.
+
+Returns a `Vector` of `Symbol`s corresponding to the names of the loaded
+variables.
+"""
 macro load(filename, vars...)
     if isempty(vars)
         if isa(filename, Expr)
