@@ -459,7 +459,7 @@ function read_vals_default(obj::JldDataset, dtype::HDF5.Datatype, T::Type, dspac
                            dsel_id::HDF5.API.hid_t, dims::Tuple{Vararg{Int}})
     out = Array{T}(undef, dims)
     # Empty objects don't need to be read at all
-    T.size == 0 && !ismutabletype(T) && return out
+    !ismutabletype(T) && sizeof(T) == 0 && return out
 
     # Read from file
     n = prod(dims)
@@ -471,7 +471,7 @@ function read_vals_default(obj::JldDataset, dtype::HDF5.Datatype, T::Type, dspac
     h5offset = pointer(buf)
     if datatype_pointerfree(T) && !ismutabletype(T)
         jloffset = pointer(out)
-        jlsz = T.size
+        jlsz = sizeof(T)
 
         # Perform conversion in buffer
         for i = 1:n
