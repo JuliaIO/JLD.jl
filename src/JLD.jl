@@ -1410,7 +1410,6 @@ include("JLD00.jl")
 ### v0.12.0 deprecations
 ###
 
-import HDF5: exists
 export exists
 @noinline function exists(p::Union{JldFile, JldGroup, JldDataset}, path::String)
     Base.depwarn("`exists(p, path)` is deprecated, use `haskey(p, path)` instead.", :exists)
