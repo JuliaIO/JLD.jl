@@ -687,7 +687,7 @@ function jldatatype(parent::JldFile, dtype::HDF5.Datatype)
     elseif class_id == HDF5.API.H5T_BITFIELD
         Bool
     elseif class_id == HDF5.API.H5T_COMPOUND || class_id == HDF5.API.H5T_OPAQUE
-        addr = object_info(dtype).addr
+        addr = HDF5.API.h5o_get_info1(HDF5.checkvalid(dtype)).addr
         haskey(parent.h5jltype, addr) && return parent.h5jltype[addr]
 
         typename = read_attribute(dtype, name_type_attr)
@@ -805,11 +805,11 @@ end
 # it's already many times faster than calling H5Iget_name with a lot of
 # data in the file, and it only needs to be called once per type.
 # Revisit if this ever turns out to be a bottleneck.
-function typeindex(parent::JldFile, addr::HDF5.haddr_t)
+function typeindex(parent::JldFile, addr::HDF5.API.haddr_t)
     gtypes = parent.plain[pathtypes]
     i = 1
     for x in gtypes
-        if object_info(x).addr == addr
+        if HDF5.API.h5o_get_info1(HDF5.checkvalid(x)).addr == addr
             return i
         end
         i += 1
