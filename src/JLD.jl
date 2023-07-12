@@ -693,7 +693,7 @@ function write_ref(parent::JldFile, data, wsession::JldWriteSession)
     dset = _write(gref, name, writeas(data), wsession)
 
     # Add reference to reference list
-    ref = HDF5.Reference(HDF5.API.hobj_ref_t(object_info(dset).addr))
+    ref = HDF5.Reference(HDF5.API.hobj_ref_t(HDF5.API.h5o_get_info1(HDF5.checkvalid(dset)).addr))
     close(dset)
     if !isa(data, Tuple) && ismutable(data)
         wsession.h5ref[data] = ref
