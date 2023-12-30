@@ -1,6 +1,6 @@
 name = "JLD"
 uuid = "4138dd39-2aa7-5051-a626-17a0bb65d9c8"
-version = "0.13.3"
+version = "0.13.4"
 
 [deps]
 Compat = "34da2185-b29b-5c13-b0c7-acf172513d20"
