@@ -761,7 +761,7 @@ function getindex(dset::JldDataset, indices::Union{AbstractRange{Int},Integer}..
     sz = map(length, indices)
     dsel = HDF5.hyperslab(dset.plain, indices...)
     try
-        dspace = HDF5._dataspace(sz)
+        dspace = HDF5.dataspace(sz)
         try
             return read_array(dset, datatype(dset.plain), dspace.id, dsel.id, sz)
         finally
@@ -791,7 +791,7 @@ function setindex!(dset::JldDataset, X::AbstractArray{T,N}, indices::Union{Abstr
             buf = h5convert_array(f, convert(Array{written_eltype,N}, X), jldtype,
                                   JldWriteSession())
 
-            dspace = HDF5._dataspace(sz)
+            dspace = HDF5.dataspace(sz)
             try
                 HDF5.API.h5d_write(dset.plain.id, dtype, dspace, dsel_id, HDF5.API.H5P_DEFAULT, buf)
             finally
