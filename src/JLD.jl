@@ -1389,6 +1389,8 @@ export
     translate,
     truncate_module_path
 
+@compat public readas, writeas
+
 const _runtime_properties = Ref{HDF5.Properties}()
 compact_properties() = _runtime_properties[]
 
