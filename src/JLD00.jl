@@ -221,7 +221,7 @@ end
 function delete!(g::JldGroup)
     fullpath = name(g)
     ensurepathsafe(fullpath)
-    for o in g typeof(o) == JldDataset && delete!(o) end
+    for (_, o) in g typeof(o) == JldDataset && delete!(o) end
     delete_object(g.file,name(g))
 end
 function delete!(parent::Union{JldFile, JldGroup}, path::String)
@@ -233,8 +233,12 @@ ismmappable(obj::JldDataset) = ismmappable(obj.plain)
 readmmap(obj::JldDataset, args...) = readmmap(obj.plain, args...)
 setindex!(parent::Union{JldFile, JldGroup}, val, path::String) = write(parent, path, val)
 
+# Must yield `key => value` pairs, not bare values, to conform to the AbstractDict
+# iteration contract that JldFile/JldGroup now inherit transitively via
+# HDF5.H5DataStore <: AbstractDict{String,Any} (HDF5.jl >= 0.18) -- otherwise generic
+# AbstractDict operations built on iterate (pairs, values, Dict(x), ...) misbehave.
 Base.iterate(parent::Union{JldFile, JldGroup}, state=(keys(parent), 1)) = state[2] > length(state[1]) ? nothing :
-                                                     (parent[state[1][state[2]]], (state[1], state[2]+1))
+                                                     (state[1][state[2]] => parent[state[1][state[2]]], (state[1], state[2]+1))
 
 
 ### Julia data file format implementation ###

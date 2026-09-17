@@ -807,11 +807,13 @@ end
 # Revisit if this ever turns out to be a bottleneck.
 function typeindex(parent::JldFile, addr::HDF5.API.haddr_t)
     gtypes = parent.plain[pathtypes]
-    i = 1
-    for x in gtypes
-        if HDF5.API.h5o_get_info1(HDF5.checkvalid(x)).addr == addr
+    # Iterate by name/getindex rather than relying on what `iterate(::Union{File,Group})`
+    # yields directly: that shape differs across HDF5.jl versions (bare object prior to
+    # 0.18, `name => object` pairs from 0.18 on), while `keys`+`getindex` is stable either
+    # way.
+    for (i, k) in enumerate(keys(gtypes))
+        if HDF5.API.h5o_get_info1(HDF5.checkvalid(gtypes[k])).addr == addr
             return i
         end
-        i += 1
     end
 end
