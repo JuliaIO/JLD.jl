@@ -455,8 +455,8 @@ function read_vals(obj::JldDataset, dtype::HDF5.Datatype, T::Type, dspace_id::HD
     return read_vals_default(obj, dtype, T, dspace_id, dsel_id, dims)
 end
 
-function read_vals_default(obj::JldDataset, dtype::HDF5.Datatype, T::Type, dspace_id::HDF5.API.hid_t,
-                           dsel_id::HDF5.API.hid_t, dims::Tuple{Vararg{Int}})
+function read_vals_default(obj::JldDataset, dtype::HDF5.Datatype, ::Type{T}, dspace_id::HDF5.API.hid_t,
+                           dsel_id::HDF5.API.hid_t, dims::Tuple{Vararg{Int}}) where {T}
     out = Array{T}(undef, dims)
     # Empty objects don't need to be read at all
     !ismutabletype(T) && sizeof(T) == 0 && return out
