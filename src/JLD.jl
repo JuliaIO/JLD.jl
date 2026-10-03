@@ -640,10 +640,10 @@ function h5convert_array(f::JldFile, data::Array,
     end
 end
 
-# Hack to ensure that _h5convert_vals isn't compiled before h5convert!
+# Infer the conversion loop after its file type metadata is available.
 function h5convert_vals(f::JldFile, @nospecialize(data), dtype::JldDatatype,
                         wsession::JldWriteSession)
-    _h5convert_vals(f, data, dtype, wsession)
+    Base.invokelatest(_h5convert_vals, f, data, dtype, wsession)
 end
 
 # Convert an array of immutables or bitstypes to a buffer representing
