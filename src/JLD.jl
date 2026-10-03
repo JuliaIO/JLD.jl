@@ -7,8 +7,6 @@ import HDF5: file, create_group, open_group, delete_object, name, ismmappable, r
 import Base: close, convert, datatype_pointerfree, delete!, dump, eltype, getindex, iterate,
              length, ndims, read, setindex!, show, size, sizeof, unsafe_convert, write
 
-@noinline gcuse(x) = x # because of use of `pointer`, need to mark gc-use end explicitly
-
 const magic_base = "Julia data file (HDF5), version "
 const version_current = v"0.1.3"
 const pathrefs = "/_refs"
@@ -211,8 +209,7 @@ function jldopen(filename::AbstractString, rd::Bool, wr::Bool, cr::Bool, tr::Boo
                 close(rawfid)
             end
             if length(magic) ≥ ncodeunits(magic_base) && view(magic, 1:ncodeunits(magic_base)) == Vector{UInt8}(codeunits(magic_base))
-                version = VersionNumber(unsafe_string(pointer(magic) + length(magic_base)))
-                gcuse(magic)
+                version = VersionNumber(GC.@preserve magic unsafe_string(pointer(magic) + length(magic_base)))
                 if version < v"0.1.0"
                     fj = JLD00.jldopen(filename, rd, wr, cr, tr, ff; mmaparrays=mmaparrays)
                 else
@@ -416,9 +413,7 @@ read_scalar(obj::JldDataset, dtype::HDF5.Datatype, T::Type) = read_scalar_defaul
 function read_scalar_default(obj::JldDataset, dtype::HDF5.Datatype, T::Type)
     buf = Vector{UInt8}(undef, sizeof(dtype))
     read_dataset(obj.plain, dtype, buf)
-    sc = readas(jlconvert(T, file(obj), pointer(buf)))
-    gcuse(buf)
-    sc
+    GC.@preserve buf readas(jlconvert(T, file(obj), pointer(buf)))
 end
 
 ## Arrays
@@ -468,26 +463,26 @@ function read_vals_default(obj::JldDataset, dtype::HDF5.Datatype, T::Type, dspac
     HDF5.API.h5d_read(obj.plain.id, dtype.id, dspace_id, dsel_id, HDF5.API.H5P_DEFAULT, buf)
 
     f = file(obj)
-    h5offset = pointer(buf)
-    if datatype_pointerfree(T) && !ismutabletype(T)
-        jloffset = pointer(out)
-        jlsz = sizeof(T)
+    GC.@preserve buf out begin
+        h5offset = pointer(buf)
+        if datatype_pointerfree(T) && !ismutabletype(T)
+            jloffset = pointer(out)
+            jlsz = sizeof(T)
 
-        # Perform conversion in buffer
-        for i = 1:n
-            jlconvert!(jloffset, T, f, h5offset)
-            jloffset += jlsz
-            h5offset += h5sz
-        end
-    else
-        # Convert each item individually
-        for i = 1:n
-            out[i] = jlconvert(T, f, h5offset)
-            h5offset += h5sz
+            # Perform conversion in buffer
+            for i = 1:n
+                jlconvert!(jloffset, T, f, h5offset)
+                jloffset += jlsz
+                h5offset += h5sz
+            end
+        else
+            # Convert each item individually
+            for i = 1:n
+                out[i] = jlconvert(T, f, h5offset)
+                h5offset += h5sz
+            end
         end
     end
-    gcuse(buf)
-    gcuse(out)
     out
 end
 
@@ -658,12 +653,13 @@ end
     sz = HDF5.API.h5t_get_size(dtype)
     n = length(data)
     buf = Vector{UInt8}(undef, sz*n)
-    offset = pointer(buf)
-    for i = 1:n
-        h5convert!(offset, f, data[i], wsession)
-        offset += sz
+    GC.@preserve buf begin
+        offset = pointer(buf)
+        for i = 1:n
+            h5convert!(offset, f, data[i], wsession)
+            offset += sz
+        end
     end
-    gcuse(buf)
     buf
 end
 
@@ -732,8 +728,7 @@ function write_compound(parent::Union{JldFile, JldGroup}, name::String,
     gen_h5convert(f, T)
 
     buf = Vector{UInt8}(undef, HDF5.API.h5t_get_size(dtype))
-    h5convert!(pointer(buf), file(parent), s, wsession)
-    gcuse(buf)
+    GC.@preserve buf h5convert!(pointer(buf), file(parent), s, wsession)
 
     dspace = HDF5.Dataspace(HDF5.API.h5s_create(HDF5.API.H5S_SCALAR))
     dprop, dprop_close = dset_create_properties(parent, length(buf), buf; kargs...)
